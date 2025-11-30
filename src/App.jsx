@@ -53,11 +53,22 @@ import {
 
 // --- 1. CONFIGURATION & SETUP ---
 
-const firebaseConfig = JSON.parse(__firebase_config);
+// Use Vite standard environment variables
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID
+};
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-basmat-khair-app';
+
+// Use a fixed string for your App ID (e.g., 'basmat-khair-v1')
+const appId = 'basmat-khair-app';
 
 // --- 2. CONSTANTS & TRANSLATIONS ---
 
