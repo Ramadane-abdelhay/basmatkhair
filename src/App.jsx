@@ -29,27 +29,27 @@ import {
   User, 
   Coins, 
   Calendar, 
-  Users,
-  Shield,
-  Trash2,
-  Menu,
-  X,
-  AlertTriangle,
-  Phone,
-  Printer,
-  Check,
-  CreditCard,
-  Banknote,
-  FileText,
-  MoreVertical,
-  Download,
-  Eye,
-  Search,
-  ChevronDown,
-  ArrowLeft,
-  Globe,
-  Languages,
-  LogIn
+  Users, 
+  Shield, 
+  Trash2, 
+  Menu, 
+  X, 
+  AlertTriangle, 
+  Phone, 
+  Printer, 
+  Check, 
+  CreditCard, 
+  Banknote, 
+  FileText, 
+  MoreVertical, 
+  Download, 
+  Eye, 
+  Search, 
+  ChevronDown, 
+  ArrowLeft, 
+  Globe, 
+  Languages, 
+  LogIn 
 } from 'lucide-react';
 
 // --- 1. CONFIGURATION & SETUP ---
@@ -356,8 +356,6 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
 };
 
 const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang }) => {
-  const printRef = useRef(null);
-
   useEffect(() => {
     if (autoPrint) {
       setTimeout(() => {
@@ -376,6 +374,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden print:shadow-none print:w-full print:max-w-none print:rounded-none">
         
+        {/* Header - Hidden on Print */}
         <div className="bg-slate-50 p-4 flex justify-between items-center border-b print:hidden" dir={t.dir}>
           <div className="flex items-center gap-2 text-slate-700 font-bold">
             <Receipt size={20} className="text-emerald-600" />
@@ -398,7 +397,8 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
           </div>
         </div>
 
-        <div id="receipt-print-area" className={`p-10 print:p-0 bg-white ${lang === 'ar' ? 'text-right' : 'text-left'} relative`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        {/* Printable Area */}
+        <div id="receipt-print-area" className={`p-10 print:p-8 bg-white ${lang === 'ar' ? 'text-right' : 'text-left'} relative`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
           
           <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none print:opacity-[0.05]">
              <img src={logoPath} className="w-96 h-96 object-contain grayscale" />
@@ -412,7 +412,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
                   src={logoPath} 
                   alt="Logo" 
                   className="w-24 h-auto object-contain"
-                  onError={(e) => {e.target.onerror = null; e.target.src = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/logo-basmat.png";}}
+                  onError={(e) => {e.target.onerror = null; e.target.src = "assets/logo-receipt.png";}}
                 />
               </div>
               <div className={`w-2/3 ${lang === 'ar' ? 'text-left' : 'text-right'} pt-1`}>
@@ -462,14 +462,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
                 </span>
               </div>
 
-              {donation.description && (
-                <div className="flex items-start mt-2">
-                  <span className="w-32 text-slate-500 font-bold text-sm mt-1">{t.description}</span>
-                  <p className="flex-1 text-sm text-slate-600 italic bg-white p-2 rounded border border-slate-100">
-                    {donation.description}
-                  </p>
-                </div>
-              )}
+              {/* REMOVED DESCRIPTION BLOCK AS REQUESTED */}
             </div>
 
             <div className="mt-12 flex justify-between items-end">
@@ -497,17 +490,16 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
       
       <style>{`
         @media print {
-          @page { size: A5 landscape; margin: 0; }
+          @page { size: auto; margin: 0; } 
           body * { visibility: hidden; }
           #receipt-print-area, #receipt-print-area * { visibility: visible; }
           #receipt-print-area {
-            position: fixed;
-            left: 0; top: 0; width: 100%; height: 100%;
+            position: absolute;
+            left: 0; top: 0;
+            width: 100%;
             margin: 0; padding: 20px;
             background: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            display: block; /* Use block to prevent flex shrink issues */
           }
         }
       `}</style>
@@ -1015,6 +1007,8 @@ export default function App() {
   const [memberData, setMemberData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // NEW: State to hold current user info to extract email
+  const [currentUser, setCurrentUser] = useState(null);
 
   // --- LOGIN FORM STATE (email/password) ---
   const [email, setEmail] = useState('');
@@ -1043,7 +1037,7 @@ export default function App() {
   const [receiptData, setReceiptData] = useState(null);
   const [autoPrint, setAutoPrint] = useState(false);
 
-  const logoPath = 'https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/logo-basmat.png'; 
+  const logoPath = './assets/logo-ar.png'; 
 
   // --- Auth & Data Fetching ---
   useEffect(() => {
@@ -1071,6 +1065,7 @@ export default function App() {
     
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUserId(user ? user.uid : null);
+      setCurrentUser(user); // Capture the full user object
       setAuthReady(true);
       if(!user) {
         setLoading(false);
@@ -1091,7 +1086,7 @@ export default function App() {
            setMemberData(snap.data());
            setIsAdmin(snap.data().isAdmin || false);
          } else {
-            setMemberData({ name: t.guest, isAdmin: false });
+            setMemberData(null); // Reset to null if not found so we check email
          }
          setLoading(false);
        });
@@ -1109,6 +1104,16 @@ export default function App() {
       return () => { unsubMember(); unsubDonations(); };
     }
   }, [authReady, userId]);
+
+  // LOGIC TO DETERMINE DISPLAY NAME
+  // 1. Try memberData.name (from Firestore)
+  // 2. Try slicing the email before '@' (from Auth)
+  // 3. Fallback to "Guest"
+  const displayMemberName = useMemo(() => {
+    if (memberData && memberData.name) return memberData.name;
+    if (currentUser && currentUser.email) return currentUser.email.split('@')[0];
+    return t.guest;
+  }, [memberData, currentUser, t.guest]);
 
   const handleAdd = async (data, callback) => {
     setLoading(true);
@@ -1158,11 +1163,7 @@ export default function App() {
     }
   };
 
-  // Define display name for use in the app
-  const displayMemberName = memberData?.name || t.guest;
-
   // --- LOGIN SCREEN (If not logged in) ---
-  
   if (!userId) {
      return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 overflow-hidden relative" dir={t.dir}>
@@ -1279,7 +1280,7 @@ export default function App() {
 
            <div className="flex items-center gap-4 px-2">
              <div className="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-lg bg-gradient-to-br from-emerald-600 to-emerald-800 ring-2 ring-white">
-               {displayMemberName.charAt(0)}
+               {displayMemberName.charAt(0).toUpperCase()}
              </div>
              <div className="overflow-hidden">
                <p className="text-sm font-bold text-slate-900 truncate">{displayMemberName}</p>
