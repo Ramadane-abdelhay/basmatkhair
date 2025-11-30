@@ -7,7 +7,8 @@ import {
   onAuthStateChanged,
   signOut,
   setPersistence,
-  browserSessionPersistence
+  browserSessionPersistence,
+  browserLocalPersistence // <--- Added this import
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -125,6 +126,7 @@ const TRANSLATIONS = {
     },
     email: "البريد الإلكتروني",
     password: "كلمة المرور",
+    rememberMe: "تذكرني", // <--- Added Translation
     invalidCreds: "خطاء في البريد أو كلمة المرور",
     errorAmount: "المرجو إدخال مبلغ صحيح",
     successMsg: "تمت العملية بنجاح",
@@ -194,6 +196,7 @@ const TRANSLATIONS = {
     },
     email: "Email",
     password: "Password",
+    rememberMe: "Remember Me", // <--- Added Translation
     invalidCreds: "Invalid email or password",
     errorAmount: "Please enter a valid amount",
     successMsg: "Operation successful",
@@ -263,6 +266,7 @@ const TRANSLATIONS = {
     },
     email: "E-mail",
     password: "Mot de passe",
+    rememberMe: "Se souvenir de moi", // <--- Added Translation
     invalidCreds: "Email ou mot de passe incorrect",
     errorAmount: "Veuillez entrer un montant valide",
     successMsg: "Opération réussie",
@@ -412,7 +416,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
                   src={logoPath} 
                   alt="Logo" 
                   className="w-24 h-auto object-contain"
-                  onError={(e) => {e.target.onerror = null; e.target.src = "assets/logo-receipt.png";}}
+                  onError={(e) => {e.target.onerror = null; e.target.src = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/logo-basmat.png";}}
                 />
               </div>
               <div className={`w-2/3 ${lang === 'ar' ? 'text-left' : 'text-right'} pt-1`}>
@@ -461,8 +465,6 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
                   {donation.bankDetails && <span className="text-sm text-slate-500 mx-2">({donation.bankDetails})</span>}
                 </span>
               </div>
-
-              {/* REMOVED DESCRIPTION BLOCK AS REQUESTED */}
             </div>
 
             <div className="mt-12 flex justify-between items-end">
@@ -490,16 +492,25 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
       
       <style>{`
         @media print {
-          @page { size: auto; margin: 0; } 
-          body * { visibility: hidden; }
-          #receipt-print-area, #receipt-print-area * { visibility: visible; }
+          @page { size: auto; margin: 0mm; } 
+          body { background: white; }
+          body * { visibility: hidden; height: 0; overflow: hidden; }
+          #receipt-print-area, #receipt-print-area * { 
+            visibility: visible; 
+            height: auto; 
+            overflow: visible; 
+          }
           #receipt-print-area {
-            position: absolute;
-            left: 0; top: 0;
+            position: fixed;
+            left: 0;
+            top: 0;
             width: 100%;
-            margin: 0; padding: 20px;
+            height: 100%;
+            margin: 0;
+            padding: 20px;
             background: white;
-            display: block; /* Use block to prevent flex shrink issues */
+            z-index: 9999;
+            display: block !important;
           }
         }
       `}</style>
@@ -792,7 +803,7 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
                          >
                            <Printer size={16} /> {t.printReceipt}
                          </button>
-                         {(isAdmin || d.createdBy === userId) && (
+                         {isAdmin && (
                            <>
                              <div className="h-px bg-slate-100 my-1"></div>
                              <button 
@@ -1013,12 +1024,17 @@ export default function App() {
   // --- LOGIN FORM STATE (email/password) ---
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false); // <--- Added Remember Me State
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMsg('');
     try {
+      // <--- Modified Sign In Logic to support persistence --->
+      const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+      await setPersistence(auth, persistenceType);
+
       await signInWithEmailAndPassword(auth, email.trim(), password);
       setEmail('');
       setPassword('');
@@ -1037,7 +1053,7 @@ export default function App() {
   const [receiptData, setReceiptData] = useState(null);
   const [autoPrint, setAutoPrint] = useState(false);
 
-  const logoPath = './assets/logo-ar.png'; 
+  const logoPath = 'https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/logo-basmat.png'; 
 
   // --- Auth & Data Fetching ---
   useEffect(() => {
@@ -1048,7 +1064,10 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        await setPersistence(auth, browserSessionPersistence);
+        // <--- REMOVED FORCED SESSION PERSISTENCE HERE --->
+        // Previously: await setPersistence(auth, browserSessionPersistence);
+        // We let firebase manage persistence state or set it on login.
+
         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         if (token) {
           await signInWithCustomToken(auth, token);
@@ -1195,6 +1214,20 @@ export default function App() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:ring-2 focus:ring-emerald-500 outline-none"
               />
+
+              {/* <--- ADDED REMEMBER ME CHECKBOX HERE ---> */}
+              <div className="flex items-center gap-3 px-2">
+                 <input 
+                   type="checkbox" 
+                   id="rememberMe"
+                   checked={rememberMe}
+                   onChange={(e) => setRememberMe(e.target.checked)}
+                   className="w-4 h-4 rounded border-white/20 bg-white/10 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                 />
+                 <label htmlFor="rememberMe" className="text-sm text-emerald-100/80 font-medium cursor-pointer select-none">
+                   {t.rememberMe}
+                 </label>
+              </div>
 
               {errorMsg && (
                 <div className="text-red-300 text-sm font-medium">{errorMsg}</div>
