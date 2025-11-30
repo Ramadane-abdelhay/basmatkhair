@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
+import { 
+  initializeApp, 
+} from 'firebase/app';
 import { 
   getAuth, 
   signInWithCustomToken, 
   signInAnonymously, 
   onAuthStateChanged,
-  signOut
+  signOut,
+  setPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -13,11 +17,9 @@ import {
   addDoc, 
   query, 
   onSnapshot, 
-  orderBy, 
   serverTimestamp,
   doc,
   setDoc,
-  getDoc,
   deleteDoc
 } from 'firebase/firestore';
 import { 
@@ -27,717 +29,840 @@ import {
   LogOut, 
   Receipt, 
   User, 
-  DollarSign, 
+  Coins, 
   Calendar, 
   CheckCircle,
-  Search,
   Users,
   Shield,
-  Trash2
+  Trash2,
+  Globe,
+  Menu,
+  X,
+  AlertTriangle 
 } from 'lucide-react';
 
-// --- Firebase Configuration & Initialization ---
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// --- 1. CONFIGURATION & SETUP ---
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyD6dXQhZxE2XZLIhE4tmKE9GWNkQXmcdOU",
-  authDomain: "basmatkhair.firebaseapp.com",
-  projectId: "basmatkhair",
-  storageBucket: "basmatkhair.firebasestorage.app",
-  messagingSenderId: "360924883660",
-  appId: "1:360924883660:web:846d5689c60a728b747069"
-};
-
-// Initialize Firebase
+// Use global environment variables for Firebase configuration and App ID
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = 'my-nonprofit-tracker'; // Use a simple string here
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// --- Components ---
+// --- 2. TRANSLATIONS & BRANDING ---
 
-// 1. Login Component
-const Login = ({ onLogin, loading, error }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const BRAND = {
+  main: '#2f7c32',   // Green
+  second: '#f07012', // Orange
+};
+
+const TRANSLATIONS = {
+  ar: {
+    appTitle: "جمعية بسمة خير : التبرعات",
+    dashboard: "لوحة التحكم",
+    add: "إضافة تبرع",
+    history: "سجل التبرعات",
+    members: "الأعضاء",
+    signOut: "تسجيل الخروج",
+    welcome: "مرحباً",
+    guest: "زائر",
+    roleAdmin: "مسؤول",
+    roleMember: "عضو",
+    // Dashboard
+    totalCollected: "إجمالي التبرعات",
+    totalOps: "عدد العمليات",
+    uniqueDonors: "عدد المتبرعين",
+    collectedByMember: "المبالغ المحصلة حسب العضو",
+    recentActivity: "آخر الأنشطة",
+    noData: "لا توجد بيانات حاليا.",
+    // Add Form
+    recordTitle: "تسجيل تبرع جديد",
+    donorName: "الاسم الكامل للمتبرع",
+    amount: "المبلغ (درهم مغربي)",
+    method: "طريقة الدفع",
+    description: "ملاحظات / وصف",
+    btnRecord: "حفظ التبرع",
+    btnSaving: "جاري الحفظ...",
+    methods: {
+      cash: "نقداً",
+      transfer: "تحويل بنكي",
+      check: "شيك",
+      other: "أخرى"
+    },
+    errorAmount: "المرجو إدخال مبلغ صحيح أكبر من 0",
+    successMsg: "تم تسجيل التبرع بنجاح",
+    // History List
+    opNumber: "رقم العملية",
+    receivedBy: "استلمها",
+    deleteConfirm: "اكتب 'DELETE' لتأكيد حذف هذا التبرع.",
+    // Login
+    loginTitle: "تسجيل الدخول",
+    emailLabel: "البريد الإلكتروني",
+    passLabel: "كلمة المرور",
+    btnLogin: "دخول",
+    btnLogging: "جاري التحقق...",
+    loginFooter: "نظام محمي - جمعية بسمة خير",
+    authError: "خطأ في الاتصال أو المصادقة. يرجى التحقق من المفاتيح أو محاولة تحديث الصفحة."
+  },
+  fr: {
+    appTitle: "Basmat Khair : Donations",
+    dashboard: "Tableau de bord",
+    add: "Ajouter un don",
+    history: "Historique",
+    members: "Membres",
+    signOut: "Déconnexion",
+    welcome: "Bienvenue",
+    guest: "Invité",
+    roleAdmin: "Admin",
+    roleMember: "Membre",
+    // Dashboard
+    totalCollected: "Total Collecté",
+    totalOps: "Opérations",
+    uniqueDonors: "Donateurs Uniques",
+    collectedByMember: "Collecté par Membre",
+    recentActivity: "Activité Récente",
+    noData: "Aucune donnée disponible.",
+    // Add Form
+    recordTitle: "Enregistrer un nouveau don",
+    donorName: "Nom complet du donateur",
+    amount: "Montant (MAD)",
+    method: "Méthode de paiement",
+    description: "Description / Notes",
+    btnRecord: "Enregistrer",
+    btnSaving: "Enregistrement...",
+    methods: {
+      cash: "Espèces",
+      transfer: "Virement Bancaire",
+      check: "Chèque",
+      other: "Autre"
+    },
+    errorAmount: "Veuillez entrer un montant valide supérieur à 0",
+    successMsg: "Don enregistré avec succès",
+    // History List
+    opNumber: "Opération N°",
+    receivedBy: "Reçu par",
+    deleteConfirm: "Tapez 'DELETE' pour confirmer la suppression.",
+    // Login
+    loginTitle: "Connexion",
+    emailLabel: "Email",
+    passLabel: "Mot de passe",
+    btnLogin: "Se connecter",
+    btnLogging: "Vérification...",
+    loginFooter: "Système protégé - Association Basmat Khair",
+    authError: "Erreur de connexion ou d'authentification. Veuillez vérifier les clés ou actualiser la page."
+  },
+  en: {
+    appTitle: "Basmat Khair : Donations",
+    dashboard: "Dashboard",
+    add: "Add Donation",
+    history: "History",
+    members: "Members",
+    signOut: "Sign Out",
+    welcome: "Welcome",
+    guest: "Guest",
+    roleAdmin: "Admin",
+    roleMember: "Member",
+    // Dashboard
+    totalCollected: "Total Collected",
+    totalOps: "Operations",
+    uniqueDonors: "Unique Donors",
+    collectedByMember: "Collected by Member",
+    recentActivity: "Recent Activity",
+    noData: "No data available.",
+    // Add Form
+    recordTitle: "Record New Donation",
+    donorName: "Donor Full Name",
+    amount: "Amount (MAD)",
+    method: "Payment Method",
+    description: "Description / Notes",
+    btnRecord: "Save Donation",
+    btnSaving: "Saving...",
+    methods: {
+      cash: "Cash",
+      transfer: "Bank Transfer",
+      check: "Check",
+      other: "Other"
+    },
+    errorAmount: "Please enter a valid amount greater than 0",
+    successMsg: "Donation recorded successfully",
+    // History List
+    opNumber: "Operation #",
+    receivedBy: "Received By",
+    deleteConfirm: "Type 'DELETE' to confirm deletion.",
+    // Login
+    loginTitle: "Sign In",
+    emailLabel: "Email Address",
+    passLabel: "Password",
+    btnLogin: "Login",
+    btnLogging: "Verifying...",
+    loginFooter: "Protected System - Basmat Khair Association",
+    authError: "Connection or authentication error. Please check keys or try refreshing the page."
+  }
+};
+
+// --- 3. SUB-COMPONENTS ---
+
+// --- Logo Path Resolver (NEW FUNCTION) ---
+const getLogoPath = (lang) => {
+    // Use Arabic logo for Arabic language, default logo for others
+    return lang === 'ar' ? '/assets/logo-ar.png' : '/assets/logo.png';
+};
+
+
+// --- Language Switcher ---
+const LangSwitcher = ({ current, onChange }) => (
+  <div className="flex gap-2">
+    {['ar', 'fr', 'en'].map(lang => (
+      <button
+        key={lang}
+        onClick={() => onChange(lang)}
+        className={`px-2 py-1 text-xs font-bold rounded uppercase transition ${
+          current === lang 
+          ? 'text-white shadow-sm' 
+          : 'bg-white/50 text-slate-600 hover:bg-white'
+        }`}
+        style={{ backgroundColor: current === lang ? BRAND.second : '' }}
+      >
+        {lang}
+      </button>
+    ))}
+  </div>
+);
+
+// --- Login/Loading Component ---
+const InitialScreen = ({ loading, error, lang, setLang, t }) => {
+    // Uses the new dynamic path function
+    const logoPath = getLogoPath(lang);
+    
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <div className="w-full max-w-sm bg-white p-8 rounded-2xl shadow-2xl border-t-4" style={{ borderColor: BRAND.main }}>
+                
+                {/* Logo Area */}
+                <div className="text-center mb-8">
+                    {/* This container defines the maximum size (w-48 h-16) */}
+                    <div className="mx-auto w-48 h-16 mb-4 relative flex items-center justify-center">
+                        {/* Image tag with scaling classes: w-full h-full object-contain */}
+                        <img 
+                            src={logoPath} 
+                            alt="Basmat Khair Logo" 
+                            className="w-full h-full object-contain" 
+                            onError={(e) => {e.target.onerror = null; e.target.src = "https://placehold.co/1080x350/2f7c32/ffffff?text=Logo";}} 
+                        />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800">{t.appTitle}</h2>
+                    <div className="mt-4 flex justify-center">
+                        <LangSwitcher current={lang} onChange={setLang} />
+                    </div>
+                </div>
+                
+                {error ? (
+                    <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg mb-6 text-sm text-center border border-red-100 flex items-center justify-center gap-2">
+                        <AlertTriangle size={18} /> {t.authError}
+                    </div>
+                ) : (
+                    <div className="text-center text-slate-500 font-medium">
+                        <div className="animate-spin inline-block w-8 h-8 border-4 border-t-4 border-slate-200 rounded-full" style={{ borderTopColor: BRAND.main }}></div>
+                        <p className="mt-4">{loading ? t.btnLogging : "Initializing..."}</p>
+                    </div>
+                )}
+                
+                <p className="mt-8 text-center text-xs text-slate-400">{t.loginFooter}</p>
+            </div>
+        </div>
+    );
+};
+
+// --- Dashboard Component ---
+const Dashboard = ({ donations, memberData, t, lang }) => {
+  const total = donations.reduce((sum, d) => sum + d.amount, 0);
+  // Get unique donor names, but only count donations that have a non-empty name
+  const uniqueDonors = new Set(donations.filter(d => d.donorName).map(d => d.donorName)).size;
+  
+  // Calculate Member Stats
+  const memberStats = useMemo(() => {
+    const stats = {};
+    donations.forEach(d => {
+      const name = d.memberName || t.guest;
+      if (!stats[name]) stats[name] = 0;
+      stats[name] += d.amount;
+    });
+    return Object.entries(stats).sort((a, b) => b[1] - a[1]);
+  }, [donations, t.guest]);
+
+  const recentDonations = donations.slice(0, 5);
+  
+  const formatMoney = (amount) => 
+    new Intl.NumberFormat(lang === 'ar' ? 'ar-MA' : 'fr-MA', { 
+      style: 'currency', 
+      currency: 'MAD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+
+  return (
+    <div className="p-6 space-y-8 animate-in fade-in duration-500">
+      {/* Header Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Total Collected - Main Card */}
+        <div className="md:col-span-3 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden" 
+             style={{ background: `linear-gradient(135deg, ${BRAND.main}, ${BRAND.second})` }}>
+          <div className="relative z-10">
+            <p className="text-white/80 font-medium mb-1 text-lg">{t.totalCollected}</p>
+            <h2 className="text-5xl font-extrabold tracking-tight">{formatMoney(total)}</h2>
+          </div>
+          <Coins className="absolute right-4 bottom-4 text-white/20 w-32 h-32 transform rotate-12" />
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <p className="text-slate-500 text-sm font-medium">{t.totalOps}</p>
+            <p className="text-2xl font-bold text-slate-800">{donations.length}</p>
+          </div>
+          <div className="p-3 rounded-full bg-blue-50 text-blue-600"><Receipt size={24} /></div>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+          <div>
+            <p className="text-slate-500 text-sm font-medium">{t.uniqueDonors}</p>
+            <p className="text-2xl font-bold text-slate-800">{uniqueDonors}</p>
+          </div>
+          <div className="p-3 rounded-full bg-purple-50 text-purple-600"><Users size={24} /></div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Member Performance Tab */}
+        <div className="bg-white rounded-xl shadow-md border border-slate-100 overflow-hidden">
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <Shield size={20} style={{ color: BRAND.second }} />
+              {t.collectedByMember}
+            </h3>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {memberStats.length === 0 ? (
+               <div className="p-8 text-center text-slate-400">{t.noData}</div>
+            ) : (
+              memberStats.map(([name, amount], idx) => (
+                <div key={name} className="p-4 flex items-center justify-between hover:bg-slate-50 transition">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx < 3 ? 'text-white' : 'bg-slate-100 text-slate-500'}`}
+                         style={{ backgroundColor: idx < 3 ? BRAND.main : '' }}>
+                      {idx + 1}
+                    </div>
+                    <span className="font-medium text-slate-700">{name}</span>
+                  </div>
+                  <span className="font-bold" style={{ color: BRAND.main }}>{formatMoney(amount)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-white rounded-xl shadow-md border border-slate-100 overflow-hidden">
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <Calendar size={20} style={{ color: BRAND.second }} />
+              {t.recentActivity}
+            </h3>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {recentDonations.length === 0 ? (
+               <div className="p-8 text-center text-slate-400">{t.noData}</div>
+            ) : (
+              recentDonations.map(d => (
+                <div key={d.id} className="p-4 hover:bg-slate-50 transition">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold text-slate-800">{d.donorName || t.guest}</span>
+                    <span className="font-bold text-sm" style={{ color: BRAND.main }}>+{formatMoney(d.amount)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-slate-500">
+                    <span>{t.receivedBy}: {d.memberName}</span>
+                    <span>{d.date ? new Date(d.date).toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR') : ''}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Donation List Component (Redesigned) ---
+const DonationList = ({ donations, t, lang, userId, isAdmin, onDelete }) => {
+  const formatMoney = (amount) => 
+    new Intl.NumberFormat(lang === 'ar' ? 'ar-MA' : 'fr-MA', { 
+      style: 'currency', 
+      currency: 'MAD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+
+  return (
+    <div className="p-6 md:p-8 bg-slate-100 min-h-full">
+      <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+        <ListIcon style={{ color: BRAND.second }} />
+        {t.history}
+      </h2>
+      
+      <div className="space-y-5">
+        {donations.length === 0 ? (
+          <div className="text-center py-12 text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
+            {t.noData}
+          </div>
+        ) : (
+          donations.map((d, index) => (
+            <div 
+              key={d.id} 
+              // Older donations are at the bottom, so use index to represent relative age
+              className="bg-white rounded-xl p-6 shadow-md border-l-4 relative"
+              style={{ 
+                borderLeftColor: d.paymentMethod === 'Cash' ? BRAND.main : BRAND.second,
+                marginBottom: index < donations.length - 1 ? '20px' : undefined // 20px separator
+              }}
+            >
+              {/* Top Row: Op Number & Date */}
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t.opNumber} #{d.operationNumber}</span>
+                  <h3 className="text-xl font-bold text-slate-800 mt-1">{d.donorName || t.guest}</h3>
+                </div>
+                <div className="text-right">
+                   <div className="font-bold text-xl" style={{ color: BRAND.main }}>
+                     {formatMoney(d.amount)}
+                   </div>
+                   <span className="text-xs px-2 py-1 rounded bg-slate-100 text-slate-600 font-medium inline-block mt-1">
+                     {t.methods[d.paymentMethod.toLowerCase().replace(/\s/g, '')] || d.paymentMethod}
+                   </span>
+                </div>
+              </div>
+
+              {/* Middle Row: Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <User size={16} className="text-slate-400" />
+                  <span>
+                    <span className="font-semibold">{t.receivedBy}: </span> 
+                    {d.memberName}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar size={16} className="text-slate-400" />
+                  <span>
+                    {d.date ? new Date(d.date).toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', {
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                    }) : ''}
+                  </span>
+                </div>
+                {d.description && (
+                  <div className="flex items-center gap-2 md:col-span-2">
+                    <Receipt size={16} className="text-slate-400" />
+                    <span className="italic">{d.description}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Delete Button (If Admin or Creator) */}
+              {(isAdmin || d.createdBy === userId) && (
+                <button 
+                  onClick={() => onDelete(d.id)}
+                  className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 transition"
+                  title="Delete Donation"
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- Add Donation Form ---
+const AddDonation = ({ onAdd, loading, t, lang }) => {
+  const [formData, setFormData] = useState({
+    donorName: '',
+    amount: '',
+    method: 'Cash',
+    description: ''
+  });
+  const [message, setMessage] = useState({ type: '', text: '' });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (email && password) {
-      onLogin(email, password);
+    setMessage({ type: '', text: '' });
+    const amountFloat = parseFloat(formData.amount);
+    
+    if (isNaN(amountFloat) || amountFloat <= 0) {
+      setMessage({ type: 'error', text: t.errorAmount });
+      return;
     }
+    onAdd(formData, (success) => {
+      if (success) {
+        setMessage({ type: 'success', text: t.successMsg });
+        setFormData({ donorName: '', amount: '', method: 'Cash', description: '' });
+      } else {
+        setMessage({ type: 'error', text: "Error saving donation." });
+      }
+    });
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-slate-200">
-        <div className="text-center mb-8">
-          <div className="bg-blue-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <DollarSign className="text-white w-8 h-8" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800">Non-Profit Tracker</h1>
-          <p className="text-slate-500">Member Access Only</p>
+    <div className="max-w-2xl mx-auto p-6 animate-in slide-in-from-bottom-4">
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+        <div className="p-6 text-white text-center" style={{ backgroundColor: BRAND.main }}>
+          <Plus className="mx-auto h-12 w-12 mb-2 opacity-80" />
+          <h2 className="text-2xl font-bold">{t.recordTitle}</h2>
         </div>
         
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 text-center">
-            {error}
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+          {message.text && (
+            <div className={`p-3 rounded text-sm text-center ${message.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+              {message.text}
+            </div>
+          )}
+          
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">{t.donorName}</label>
+            <input 
+              type="text" required 
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 outline-none"
+              style={{ '--tw-ring-color': BRAND.main }}
+              value={formData.donorName}
+              onChange={e => setFormData({...formData, donorName: e.target.value})}
+              placeholder={t.guest}
+            />
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-            <input 
-              type="email" 
-              required
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              placeholder="member@org.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">{t.amount}</label>
+              <div className="relative">
+                 <input 
+                  type="number" step="0.01" required 
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 outline-none font-mono text-lg"
+                  style={{ '--tw-ring-color': BRAND.main }}
+                  value={formData.amount}
+                  onChange={e => setFormData({...formData, amount: e.target.value})}
+                  min="0.01"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">{t.method}</label>
+              <select 
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 outline-none bg-white"
+                style={{ '--tw-ring-color': BRAND.main }}
+                value={formData.method}
+                onChange={e => setFormData({...formData, method: e.target.value})}
+              >
+                <option value="Cash">{t.methods.cash}</option>
+                <option value="Bank Transfer">{t.methods.transfer}</option>
+                <option value="Check">{t.methods.check}</option>
+                <option value="Other">{t.methods.other}</option>
+              </select>
+            </div>
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-            <input 
-              type="password" 
-              required
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <label className="block text-sm font-bold text-slate-700 mb-2">{t.description}</label>
+            <textarea 
+              rows="3"
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 outline-none"
+              style={{ '--tw-ring-color': BRAND.main }}
+              value={formData.description}
+              onChange={e => setFormData({...formData, description: e.target.value})}
+              placeholder={t.description}
+            ></textarea>
           </div>
+
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200 flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-xl font-bold text-white text-lg shadow-lg hover:shadow-xl transition transform active:scale-[0.98]"
+            style={{ backgroundColor: BRAND.second }}
           >
-            {loading ? 'Verifying...' : 'Secure Login'}
+            {loading ? t.btnSaving : t.btnRecord}
           </button>
         </form>
-        <div className="mt-6 text-center text-xs text-slate-400">
-          Protected System. Unauthorized access is prohibited.
-        </div>
       </div>
     </div>
   );
 };
 
-// 2. Receipt Component (Print View)
-const ReceiptView = ({ donation, onClose }) => {
-  if (!donation) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="p-8 print:p-0" id="receipt-area">
-          <div className="text-center border-b pb-6 mb-6">
-            <h2 className="text-2xl font-bold text-slate-800">OFFICIAL RECEIPT</h2>
-            <p className="text-slate-500">Non-Profit Organization Inc.</p>
-            <p className="text-xs text-slate-400 mt-1">Receipt #{donation.operationNumber}</p>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Date Received:</span>
-              <span className="font-medium">{new Date(donation.date).toLocaleDateString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Donor Name:</span>
-              <span className="font-bold text-lg">{donation.donorFirstName} {donation.donorLastName}</span>
-            </div>
-            <div className="flex justify-between items-center py-4 border-y border-dashed border-slate-300 my-4">
-              <span className="text-slate-500">Amount Received:</span>
-              <span className="text-3xl font-bold text-green-600">${parseFloat(donation.amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Payment Method:</span>
-              <span className="font-medium capitalize">{donation.paymentMethod}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Received By:</span>
-              <span className="font-medium">{donation.memberName}</span>
-            </div>
-            {donation.comment && (
-              <div className="bg-slate-50 p-3 rounded text-sm text-slate-600 italic">
-                "{donation.comment}"
-              </div>
-            )}
-          </div>
-
-          <div className="mt-8 text-center pt-6 border-t">
-            <p className="text-sm font-semibold text-slate-800">Thank you for your generous support!</p>
-            <p className="text-xs text-slate-400 mt-2">This is an electronically generated receipt.</p>
-          </div>
-        </div>
-
-        <div className="bg-slate-50 p-4 flex justify-end gap-3 border-t">
-          <button 
-            onClick={onClose}
-            className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition"
-          >
-            Close
-          </button>
-          <button 
-            onClick={() => {
-              const printContent = document.getElementById('receipt-area').innerHTML;
-              const originalContent = document.body.innerHTML;
-              document.body.innerHTML = `<div style="padding: 40px; max-width: 600px; margin: 0 auto;">${printContent}</div>`;
-              window.print();
-              document.body.innerHTML = originalContent;
-              window.location.reload(); 
-            }}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg flex items-center gap-2 transition"
-          >
-            <Receipt size={18} /> Print PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 3. Main Application
+// --- 4. MAIN APP COMPONENT ---
 export default function App() {
-  const [user, setUser] = useState(null); // Firebase Auth User
-  const [appUser, setAppUser] = useState(null); // App Member Profile (from Firestore)
-  const [view, setView] = useState('login'); // login, dashboard, add, list, members
-  const [donations, setDonations] = useState([]);
-  const [members, setMembers] = useState([]);
+  const [lang, setLang] = useState(localStorage.getItem('app_lang') || 'ar');
+  const [userId, setUserId] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [view, setView] = useState('dashboard');
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState('');
-  const [activeReceipt, setActiveReceipt] = useState(null);
+  const [donations, setDonations] = useState([]);
+  const [memberData, setMemberData] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [authError, setAuthError] = useState(false);
 
-  // Form States
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    amount: '',
-    method: 'Cash',
-    comment: ''
-  });
+  // Helper to get current translation
+  const t = TRANSLATIONS[lang];
+  // Uses the new dynamic path function
+  const logoPath = getLogoPath(lang);
 
-  const [memberForm, setMemberForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'member' // 'admin' or 'member'
-  });
+  // --- Effects ---
 
-  // --- 1. Initial Setup & Auth ---
+  // 1. Branding & Head Tags
   useEffect(() => {
-    // We use a simplified Auth flow here:
-    // 1. App authenticates anonymously to Firebase to get database access.
-    // 2. User "logs in" by checking credentials against a 'members' collection in Firestore.
-    // This allows custom member management without needing a complex backend server.
+    // Set Title
+    document.title = t.appTitle;
+    localStorage.setItem('app_lang', lang);
     
+    // Set RTL/LTR direction
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  }, [lang, t.appTitle]);
+
+  // 2. Auth Initialization (Runs once)
+  useEffect(() => {
     const initAuth = async () => {
       try {
-        // We always sign in anonymously first to get database access
-        await signInAnonymously(auth); 
+        await setPersistence(auth, browserSessionPersistence);
+        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        if (token) {
+          await signInWithCustomToken(auth, token);
+        } else {
+          // Fallback to anonymous sign-in if no token is provided
+          await signInAnonymously(auth);
+        }
       } catch (err) {
-        console.error("Auth error:", err);
+         console.error("Firebase Auth initialization error:", err);
+         setAuthError(true);
       }
     };
-    initAuth();
-
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      
-      // Auto-login from local storage (session persistence)
-      const savedMember = localStorage.getItem('donation_app_member');
-      if (savedMember) {
-        const memberData = JSON.parse(savedMember);
-        setAppUser(memberData);
-        setView('dashboard');
+    
+    // Listen for auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserId(user.uid);
+      } else {
+        setUserId(null);
       }
-
-      // Initialize Admin if not exists (First Run Only)
-      if (u) {
-        const adminRef = doc(db, 'artifacts', appId, 'public', 'data', 'members', 'admin@org.com');
-        const adminSnap = await getDoc(adminRef);
-        if (!adminSnap.exists()) {
-           await setDoc(adminRef, {
-             name: 'System Admin',
-             email: 'admin@org.com',
-             password: 'admin123', // In a real app, hash this!
-             role: 'admin',
-             createdAt: serverTimestamp()
-           });
-           console.log("Default admin created");
-        }
-      }
+      setAuthReady(true);
       setLoading(false);
     });
+
+    initAuth();
     return () => unsubscribe();
   }, []);
 
-  // --- 2. Data Listeners ---
+  // 3. Member Data (Runs when auth is ready)
   useEffect(() => {
-    if (!user) return;
+    if (authReady && userId) {
+      // Look up member data in the public collection
+      const memberDocRef = doc(db, `artifacts/${appId}/public/data/members`, userId);
+       const unsub = onSnapshot(memberDocRef, (snap) => {
+         if (snap.exists()) {
+           setMemberData(snap.data());
+           setIsAdmin(snap.data().isAdmin || false);
+         } else {
+            // For new users or if member data is missing, use a default
+            setMemberData({ name: t.guest, isAdmin: false });
+            setIsAdmin(false);
+         }
+       });
+       return () => unsub();
+    }
+  }, [authReady, userId, t.guest]);
 
-    // Fetch Donations
-    const qDonations = query(collection(db, 'artifacts', appId, 'public', 'data', 'donations'));
-    const unsubDonations = onSnapshot(qDonations, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate() || new Date()
-      }));
-      data.sort((a, b) => b.date - a.date);
-      setDonations(data);
+  // 4. Donations Data (Runs when auth is ready)
+  useEffect(() => {
+    if (authReady && userId) {
+      const q = query(collection(db, `artifacts/${appId}/public/data/donations`));
+      const unsub = onSnapshot(q, (snap) => {
+        const list = snap.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data(),
+          // Convert Firestore Timestamp to Date object, fall back gracefully
+          date: d.data().timestamp?.toDate ? d.data().timestamp.toDate() : d.data().timestamp
+        }));
+        // Sort DESC by timestamp (Newest First) in memory
+        list.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+        setDonations(list);
+      });
+      return () => unsub();
+    }
+  }, [authReady, userId]);
+
+  // --- Handlers ---
+
+  const handleSignOut = () => {
+    signOut(auth).then(() => {
+      // After sign out, the onAuthStateChanged listener handles the state change
+      setView('dashboard');
+    }).catch((error) => {
+      console.error("Sign Out Error:", error);
     });
+  };
 
-    // Fetch Members (Only strictly needed for Admin, but getting all for list display)
-    const qMembers = query(collection(db, 'artifacts', appId, 'public', 'data', 'members'));
-    const unsubMembers = onSnapshot(qMembers, (snapshot) => {
-       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-       setMembers(data);
-    });
 
-    return () => {
-      unsubDonations();
-      unsubMembers();
-    };
-  }, [user]);
-
-  // --- 3. Handlers ---
-
-  const handleLogin = async (email, password) => {
+  const handleAdd = async (data, callback) => {
     setLoading(true);
-    setAuthError('');
-    
     try {
-      // Look up user in Firestore
-      const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'members', email);
-      const userSnap = await getDoc(userRef);
-
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        if (userData.password === password) {
-          // Success
-          const profile = {
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-            id: userSnap.id
-          };
-          setAppUser(profile);
-          localStorage.setItem('donation_app_member', JSON.stringify(profile));
-          setView('dashboard');
-        } else {
-          setAuthError('Incorrect password.');
-        }
-      } else {
-        setAuthError('Member email not found.');
-      }
-    } catch (err) {
-      console.error(err);
-      setAuthError('System error. Please try again.');
-    }
-    setLoading(false);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('donation_app_member');
-    setAppUser(null);
-    setView('login');
-  };
-
-  const handleAddDonation = async (e) => {
-    e.preventDefault();
-    if (!appUser || !formData.amount) return;
-
-    try {
-      const newOpNumber = donations.length + 1;
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'donations'), {
-        operationNumber: newOpNumber,
-        donorFirstName: formData.firstName,
-        donorLastName: formData.lastName,
-        amount: parseFloat(formData.amount),
-        paymentMethod: formData.method,
-        comment: formData.comment,
-        memberEmail: appUser.email,
-        memberName: appUser.name,
-        date: serverTimestamp(),
+      // Get the next operation number
+      const nextOpNumber = donations.length > 0 ? donations[0].operationNumber + 1 : 1; 
+      
+      await addDoc(collection(db, `artifacts/${appId}/public/data/donations`), {
+        operationNumber: nextOpNumber,
+        donorName: data.donorName || t.guest,
+        amount: parseFloat(data.amount),
+        paymentMethod: data.method,
+        description: data.description,
+        createdBy: userId,
+        memberName: memberData?.name || t.guest,
+        timestamp: serverTimestamp()
       });
-      setFormData({ firstName: '', lastName: '', amount: '', method: 'Cash', comment: '' });
-      setView('list'); 
+      setView('list');
+      callback(true);
     } catch (err) {
-      alert("Failed to save.");
+      console.error("Error adding donation:", err);
+      callback(false);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAddMember = async (e) => {
-    e.preventDefault();
-    if (appUser.role !== 'admin') return;
-
-    try {
-      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', memberForm.email), {
-        name: memberForm.name,
-        email: memberForm.email,
-        password: memberForm.password,
-        role: memberForm.role,
-        createdAt: serverTimestamp()
-      });
-      setMemberForm({ name: '', email: '', password: '', role: 'member' });
-      alert("Member added successfully!");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to add member.");
-    }
-  };
-  
-  const handleDeleteMember = async (email) => {
-      if(!confirm("Are you sure you want to remove this member?")) return;
+  const handleDelete = async (id) => {
+    if(confirm(t.deleteConfirm)) {
       try {
-          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', email));
+        await deleteDoc(doc(db, `artifacts/${appId}/public/data/donations`, id));
       } catch(err) {
-          alert("Error removing member");
+        console.error("Error deleting donation:", err);
       }
-  }
-
-  // --- 4. Stats Calculation ---
-  const stats = useMemo(() => {
-    const totalCollected = donations.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
-    const memberTotals = {};
-    donations.forEach(d => {
-      const name = d.memberName || 'Unknown';
-      if (!memberTotals[name]) memberTotals[name] = 0;
-      memberTotals[name] += (parseFloat(d.amount) || 0);
-    });
-    const memberList = Object.entries(memberTotals)
-      .map(([name, total]) => ({ name, total }))
-      .sort((a, b) => b.total - a.total);
-    return { totalCollected, memberList };
-  }, [donations]);
-
+    }
+  };
 
   // --- Render ---
-
-  if (view === 'login') {
-    return <Login onLogin={handleLogin} loading={loading} error={authError} />;
+  if (loading || !authReady || authError) {
+    return <InitialScreen loading={loading} error={authError} lang={lang} setLang={setLang} t={t} />;
   }
+  
+  // Use a fallback member name if not fully loaded/set
+  const displayMemberName = memberData?.name || t.guest;
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 pb-20 md:pb-0">
+    <div className="min-h-screen bg-slate-100 flex font-sans" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       
-      {/* Navigation Bar */}
-      <nav className="bg-white shadow-sm border-b sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('dashboard')}>
-              <div className="bg-blue-600 rounded p-1">
-                <DollarSign size={20} className="text-white" />
-              </div>
-              <span className="font-bold text-lg tracking-tight">NonProfit<span className="text-blue-600">Track</span></span>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="hidden md:block text-right">
-                <div className="text-sm font-medium flex items-center justify-end gap-1">
-                  {appUser?.name} 
-                  {appUser?.role === 'admin' && <Shield size={14} className="text-blue-600" />}
-                </div>
-                <div className="text-xs text-slate-500 capitalize">{appUser?.role}</div>
-              </div>
-              <button onClick={handleLogout} className="text-slate-500 hover:text-red-600 transition">
-                <LogOut size={20} />
-              </button>
-            </div>
+      {/* Sidebar (Desktop) */}
+      <aside className="hidden md:flex flex-col w-72 bg-white shadow-xl z-20 sticky top-0 h-screen">
+        <div className="p-6 flex flex-col items-center border-b border-slate-100">
+          <div className="mx-auto w-48 h-16 mb-3 relative flex items-center justify-center">
+            {/* Logo Image - Scaled down to fit container */}
+            <img 
+              src={logoPath} 
+              alt="Logo" 
+              className="w-full h-full object-contain" 
+              onError={(e) => {e.target.onerror = null; e.target.src = "https://placehold.co/1080x350/2f7c32/ffffff?text=Logo";}}
+            />
           </div>
+          <h1 className="text-lg font-bold text-center text-slate-800 leading-tight">{t.appTitle}</h1>
         </div>
-      </nav>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {/* VIEW: DASHBOARD */}
-        {view === 'dashboard' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-slate-800">Overview</h2>
-              <div className="flex gap-2">
-                {appUser.role === 'admin' && (
-                  <button 
-                    onClick={() => setView('members')}
-                    className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition"
-                  >
-                    <Users size={18} /> Manage Members
-                  </button>
-                )}
-                <button 
-                  onClick={() => setView('add')}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 shadow-sm transition active:scale-95"
-                >
-                  <Plus size={18} /> Add Donation
-                </button>
-              </div>
-            </div>
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          <NavItem active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutDashboard} label={t.dashboard} color={BRAND.main} />
+          <NavItem active={view === 'add'} onClick={() => setView('add')} icon={Plus} label={t.add} color={BRAND.second} />
+          <NavItem active={view === 'list'} onClick={() => setView('list')} icon={ListIcon} label={t.history} color={BRAND.main} />
+        </nav>
 
-            {/* Total Card */}
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-lg">
-              <p className="text-blue-100 font-medium mb-1">Total Funds Collected</p>
-              <h1 className="text-5xl font-bold tracking-tight">
-                ${stats.totalCollected.toLocaleString('en-US', {minimumFractionDigits: 2})}
-              </h1>
-              <div className="mt-4 flex items-center gap-2 text-sm text-blue-100 bg-white/10 w-fit px-3 py-1 rounded-full">
-                <CheckCircle size={14} />
-                <span>{donations.length} total operations recorded</span>
-              </div>
-            </div>
-
-            {/* Member Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <User size={20} className="text-slate-400" />
-                  Performance by Member
-                </h3>
-                <div className="space-y-4">
-                  {stats.memberList.length === 0 ? (
-                    <p className="text-slate-400 text-sm">No data yet.</p>
-                  ) : (
-                    stats.memberList.map((m, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded transition">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${idx === 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>
-                            {idx + 1}
-                          </div>
-                          <span className="font-medium">{m.name}</span>
-                        </div>
-                        <span className="font-bold text-slate-700">${m.total.toLocaleString()}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Recent Activity */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-lg flex items-center gap-2">
-                    <Calendar size={20} className="text-slate-400" />
-                    Recent Activity
-                  </h3>
-                  <button onClick={() => setView('list')} className="text-blue-600 text-sm font-medium hover:underline">View All</button>
-                </div>
-                <div className="space-y-3">
-                  {donations.slice(0, 5).map(d => (
-                    <div key={d.id} className="text-sm border-b border-slate-100 pb-2 last:border-0 last:pb-0">
-                      <div className="flex justify-between">
-                        <span className="font-medium text-slate-800">{d.donorFirstName} {d.donorLastName}</span>
-                        <span className="text-green-600 font-bold">+${d.amount}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-slate-500 mt-1">
-                        <span>via {d.memberName}</span>
-                        <span>{new Date(d.date).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW: ADD DONATION */}
-        {view === 'add' && (
-          <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <button onClick={() => setView('dashboard')} className="mb-4 text-slate-500 hover:text-slate-800 flex items-center gap-1 text-sm font-medium">
-              &larr; Back to Dashboard
-            </button>
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-slate-50 p-6 border-b border-slate-100">
-                <h2 className="text-xl font-bold text-slate-800">Record New Donation</h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Recorded by: <span className="font-medium text-slate-700">{appUser.name}</span> • {new Date().toLocaleDateString()}
-                </p>
-              </div>
-              <form onSubmit={handleAddDonation} className="p-6 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Donor First Name</label>
-                    <input required type="text" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                      value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Donor Last Name</label>
-                    <input required type="text" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                      value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Donation Amount ($)</label>
-                  <input required type="number" step="0.01" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium text-lg"
-                      value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Payment Method</label>
-                  <select className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                    value={formData.method} onChange={e => setFormData({...formData, method: e.target.value})}>
-                    <option value="Cash">Cash</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Check">Check</option>
-                    <option value="Online / Card">Online / Card</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Comment (Optional)</label>
-                  <textarea rows="3" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={formData.comment} onChange={e => setFormData({...formData, comment: e.target.value})}></textarea>
-                </div>
-                <div className="pt-4 flex gap-3">
-                  <button type="button" onClick={() => setView('dashboard')} className="flex-1 px-4 py-3 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition">Cancel</button>
-                  <button type="submit" className="flex-1 px-4 py-3 text-white bg-green-600 hover:bg-green-700 rounded-lg font-medium shadow-md transition">Confirm Donation</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW: DONATION LIST */}
-        {view === 'list' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-             <div className="flex justify-between items-center mb-6">
-               <button onClick={() => setView('dashboard')} className="text-slate-500 hover:text-slate-800 flex items-center gap-1 text-sm font-medium">
-                 &larr; Back to Dashboard
-               </button>
-               <button onClick={() => setView('add')} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm">
-                  <Plus size={16} /> New Entry
-                </button>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-3 font-medium">Date</th>
-                    <th className="px-6 py-3 font-medium">Donor</th>
-                    <th className="px-6 py-3 font-medium">Amount</th>
-                    <th className="px-6 py-3 font-medium">Member</th>
-                    <th className="px-6 py-3 font-medium text-right">Receipt</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {donations.map((d) => (
-                    <tr key={d.id} className="hover:bg-slate-50 transition">
-                      <td className="px-6 py-4">{new Date(d.date).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 font-medium">{d.donorFirstName} {d.donorLastName}</td>
-                      <td className="px-6 py-4 text-green-600 font-bold">${parseFloat(d.amount).toLocaleString()}</td>
-                      <td className="px-6 py-4"><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{d.memberName}</span></td>
-                      <td className="px-6 py-4 text-right">
-                        <button onClick={() => setActiveReceipt(d)} className="text-slate-600 hover:text-blue-600 p-2"><Receipt size={18} /></button>
-                      </td>
-                    </tr>
-                  ))}
-                  {donations.length === 0 && <tr><td colSpan="5" className="p-6 text-center text-slate-400">No donations.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW: ADMIN MEMBERS MANAGEMENT */}
-        {view === 'members' && appUser.role === 'admin' && (
-           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-300">
-             <button onClick={() => setView('dashboard')} className="mb-4 text-slate-500 hover:text-slate-800 flex items-center gap-1 text-sm font-medium">
-               &larr; Back to Dashboard
-             </button>
-             
-             <div className="grid md:grid-cols-3 gap-6">
-                {/* Form */}
-                <div className="md:col-span-1">
-                    <div className="bg-slate-800 text-white p-6 rounded-xl shadow-lg">
-                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                            <Shield size={18} /> Add Member
-                        </h3>
-                        <form onSubmit={handleAddMember} className="space-y-4">
-                            <div>
-                                <label className="text-xs text-slate-400">Full Name</label>
-                                <input required className="w-full bg-slate-700 border-slate-600 rounded p-2 text-sm mt-1 focus:ring-1 focus:ring-blue-400 outline-none"
-                                value={memberForm.name} onChange={e => setMemberForm({...memberForm, name: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-xs text-slate-400">Email (Login)</label>
-                                <input required type="email" className="w-full bg-slate-700 border-slate-600 rounded p-2 text-sm mt-1 focus:ring-1 focus:ring-blue-400 outline-none"
-                                value={memberForm.email} onChange={e => setMemberForm({...memberForm, email: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-xs text-slate-400">Password</label>
-                                <input required type="text" className="w-full bg-slate-700 border-slate-600 rounded p-2 text-sm mt-1 focus:ring-1 focus:ring-blue-400 outline-none"
-                                value={memberForm.password} onChange={e => setMemberForm({...memberForm, password: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-xs text-slate-400">Role</label>
-                                <select className="w-full bg-slate-700 border-slate-600 rounded p-2 text-sm mt-1 outline-none"
-                                value={memberForm.role} onChange={e => setMemberForm({...memberForm, role: e.target.value})}>
-                                    <option value="member">Member</option>
-                                    <option value="admin">Admin</option>
-                                </select>
-                            </div>
-                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded font-medium mt-2">Create Account</button>
-                        </form>
-                    </div>
-                </div>
-
-                {/* List */}
-                <div className="md:col-span-2">
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 font-bold text-lg">Current Staff</div>
-                        <div className="divide-y divide-slate-100">
-                            {members.map(m => (
-                                <div key={m.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold">
-                                            {m.name.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <div className="font-medium text-slate-800 flex items-center gap-2">
-                                                {m.name}
-                                                {m.role === 'admin' && <span className="text-[10px] bg-slate-800 text-white px-1.5 py-0.5 rounded">ADMIN</span>}
-                                            </div>
-                                            <div className="text-xs text-slate-400">{m.email}</div>
-                                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">Pw: {m.password}</div>
-                                        </div>
-                                    </div>
-                                    {m.email !== 'admin@org.com' && (
-                                        <button onClick={() => handleDeleteMember(m.id)} className="text-slate-300 hover:text-red-600 p-2">
-                                            <Trash2 size={18} />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50">
+           <div className="flex items-center gap-3 mb-4">
+             <div className="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: BRAND.second }}>
+               {displayMemberName.charAt(0)}
+             </div>
+             <div>
+               <p className="text-sm font-bold text-slate-800">{displayMemberName}</p>
+               <p className="text-xs text-slate-500">{isAdmin ? t.roleAdmin : t.roleMember}</p>
              </div>
            </div>
+           
+           <LangSwitcher current={lang} onChange={setLang} />
+           
+           <button onClick={handleSignOut} className="flex items-center gap-2 text-red-500 text-sm font-bold mt-4 hover:bg-red-50 p-2 rounded w-full transition">
+             <LogOut size={16} /> {t.signOut}
+           </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Mobile Header */}
+        <header className="md:hidden bg-white p-4 shadow-sm flex justify-between items-center z-20">
+           {/* Logo Image for Mobile Header */}
+           <img 
+              src={logoPath} 
+              alt="Logo" 
+              className="h-10 w-auto" // Use w-auto here to respect aspect ratio in the small header
+              onError={(e) => {e.target.onerror = null; e.target.src = "https://placehold.co/100x35/2f7c32/ffffff?text=Logo";}}
+            />
+           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+             {isMobileMenuOpen ? <X /> : <Menu />}
+           </button>
+        </header>
+
+        {/* Mobile Menu Overlay */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 bg-white z-50 p-6 flex flex-col md:hidden">
+            <div className="flex justify-between items-center mb-8">
+               <h2 className="text-xl font-bold">{t.appTitle}</h2>
+               <button onClick={() => setIsMobileMenuOpen(false)}><X /></button>
+            </div>
+            <nav className="space-y-4 flex-1">
+              <MobileNavItem onClick={() => { setView('dashboard'); setIsMobileMenuOpen(false); }} label={t.dashboard} active={view === 'dashboard'} />
+              <MobileNavItem onClick={() => { setView('add'); setIsMobileMenuOpen(false); }} label={t.add} active={view === 'add'} />
+              <MobileNavItem onClick={() => { setView('list'); setIsMobileMenuOpen(false); }} label={t.history} active={view === 'list'} />
+            </nav>
+            <div className="mt-auto pt-8 border-t">
+              <LangSwitcher current={lang} onChange={setLang} />
+            </div>
+          </div>
         )}
+
+        <div className="flex-1 overflow-y-auto bg-slate-100">
+          {view === 'dashboard' && <Dashboard donations={donations} memberData={memberData} t={t} lang={lang} />}
+          {view === 'add' && <AddDonation onAdd={handleAdd} loading={loading} t={t} lang={lang} />}
+          {view === 'list' && <DonationList donations={donations} t={t} lang={lang} userId={userId} isAdmin={isAdmin} onDelete={handleDelete} />}
+        </div>
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-3 z-40 pb-safe">
-        <button onClick={() => setView('dashboard')} className={`flex flex-col items-center ${view === 'dashboard' ? 'text-blue-600' : 'text-slate-400'}`}>
-          <LayoutDashboard size={24} />
-          <span className="text-[10px] mt-1 font-medium">Home</span>
-        </button>
-        <button onClick={() => setView('add')} className={`flex flex-col items-center -mt-6`}>
-           <div className="bg-blue-600 text-white p-4 rounded-full shadow-lg border-4 border-slate-50">
-            <Plus size={24} />
-           </div>
-        </button>
-        <button onClick={() => setView('list')} className={`flex flex-col items-center ${view === 'list' ? 'text-blue-600' : 'text-slate-400'}`}>
-          <ListIcon size={24} />
-          <span className="text-[10px] mt-1 font-medium">History</span>
-        </button>
-      </div>
-
-      {activeReceipt && (
-        <ReceiptView donation={activeReceipt} onClose={() => setActiveReceipt(null)} />
-      )}
     </div>
   );
 }
+
+// --- Helper Components ---
+const NavItem = ({ active, onClick, icon: Icon, label, color }) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center w-full p-3 rounded-xl transition-all duration-200 ${
+      active ? 'bg-white shadow-md font-bold' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+    }`}
+    style={active ? { color: color, borderLeft: `4px solid ${color}` } : {}}
+  >
+    <Icon size={20} className={active ? '' : 'text-slate-400'} style={active ? { marginInlineStart: '8px' } : { margin: '0 8px' }} />
+    <span className="mx-2">{label}</span>
+  </button>
+);
+
+const MobileNavItem = ({ onClick, label, active }) => (
+  <button 
+    onClick={onClick} 
+    className={`w-full text-start p-4 rounded-lg text-lg font-bold ${active ? 'bg-slate-100 text-slate-900' : 'text-slate-500'}`}
+  >
+    {label}
+  </button>
+);
