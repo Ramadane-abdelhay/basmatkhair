@@ -642,3 +642,56 @@ const ProfileEditor = ({ currentName, onSave }) => {
     </div>
   );
 };
+const LanguageSelector = ({
+  currentLang,
+  setLang,
+  t,
+  isOpen,
+  setIsOpen,
+  up
+}) => {
+  return (
+    <div className="relative select-none">
+      {/* Toggle Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white 
+                   backdrop-blur-lg text-sm flex items-center justify-between"
+      >
+        {currentLang === "ar" ? "العربية" : "English"}
+        <ChevronDown size={16} className="opacity-70" />
+      </button>
+
+      {/* Dropdown */}
+      {isOpen && (
+        <div
+          className={`absolute ${
+            up ? "bottom-full mb-2" : "top-full mt-2"
+          } left-0 w-full bg-white/10 backdrop-blur-xl border border-white/20
+                      rounded-xl overflow-hidden shadow-xl`}
+        >
+          <button
+            onClick={() => {
+              setLang("ar");
+              setIsOpen(false);
+            }}
+            className="w-full px-4 py-2 text-white text-sm hover:bg-white/20 transition text-right"
+          >
+            العربية
+          </button>
+
+          <button
+            onClick={() => {
+              setLang("en");
+              setIsOpen(false);
+            }}
+            className="w-full px-4 py-2 text-white text-sm hover:bg-white/20 transition text-left"
+          >
+            English
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
