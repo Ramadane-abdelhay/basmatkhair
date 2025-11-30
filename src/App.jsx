@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  initializeApp, 
-} from 'firebase/app';
+import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithCustomToken, 
-  signInAnonymously, 
+  signInWithEmailAndPassword, 
   onAuthStateChanged,
   signOut,
   setPersistence,
@@ -125,6 +123,9 @@ const TRANSLATIONS = {
       check: "شيك",
       other: "أخرى"
     },
+    email: "البريد الإلكتروني",
+    password: "كلمة المرور",
+    invalidCreds: "خطاء في البريد أو كلمة المرور",
     errorAmount: "المرجو إدخال مبلغ صحيح",
     successMsg: "تمت العملية بنجاح",
     actions: "إجراءات",
@@ -191,6 +192,9 @@ const TRANSLATIONS = {
       check: "Check",
       other: "Other"
     },
+    email: "Email",
+    password: "Password",
+    invalidCreds: "Invalid email or password",
     errorAmount: "Please enter a valid amount",
     successMsg: "Operation successful",
     actions: "Actions",
@@ -257,6 +261,9 @@ const TRANSLATIONS = {
       check: "Chèque",
       other: "Autre"
     },
+    email: "E-mail",
+    password: "Mot de passe",
+    invalidCreds: "Email ou mot de passe incorrect",
     errorAmount: "Veuillez entrer un montant valide",
     successMsg: "Opération réussie",
     actions: "Actions",
@@ -405,7 +412,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
                   src={logoPath} 
                   alt="Logo" 
                   className="w-24 h-auto object-contain"
-                  onError={(e) => {e.target.onerror = null; e.target.src = "assets/logo-receipt.png";}}
+                  onError={(e) => {e.target.onerror = null; e.target.src = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/logo-basmat.png";}}
                 />
               </div>
               <div className={`w-2/3 ${lang === 'ar' ? 'text-left' : 'text-right'} pt-1`}>
@@ -1008,6 +1015,26 @@ export default function App() {
   const [memberData, setMemberData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // --- LOGIN FORM STATE (email/password) ---
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSignIn = async () => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      setEmail('');
+      setPassword('');
+    } catch (err) {
+      console.error('Sign-in error:', err);
+      setErrorMsg(t.invalidCreds || 'Invalid credentials');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // Sidebar Language Dropdown State
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
@@ -1016,7 +1043,7 @@ export default function App() {
   const [receiptData, setReceiptData] = useState(null);
   const [autoPrint, setAutoPrint] = useState(false);
 
-  const logoPath = './assets/logo-ar.png'; 
+  const logoPath = 'https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/logo-basmat.png'; 
 
   // --- Auth & Data Fetching ---
   useEffect(() => {
@@ -1032,7 +1059,6 @@ export default function App() {
         if (token) {
           await signInWithCustomToken(auth, token);
         } else {
-          // REMOVED AUTO ANONYMOUS LOGIN TO PREVENT "OPENING FOR EVERYONE"
           setAuthReady(true);
           setLoading(false);
         }
@@ -1132,17 +1158,11 @@ export default function App() {
     }
   };
 
-  const handleGuestLogin = async () => {
-    setLoading(true);
-    try {
-      await signInAnonymously(auth);
-    } catch (error) {
-      console.error(error);
-      setLoading(false);
-    }
-  };
+  // Define display name for use in the app
+  const displayMemberName = memberData?.name || t.guest;
 
   // --- LOGIN SCREEN (If not logged in) ---
+  
   if (!userId) {
      return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 overflow-hidden relative" dir={t.dir}>
@@ -1150,16 +1170,38 @@ export default function App() {
          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2"></div>
 
          <div className="relative z-10 bg-white/5 backdrop-blur-xl border border-white/10 p-12 rounded-3xl text-center max-w-md w-full shadow-2xl">
-            <div className="w-24 h-24 bg-white rounded-full mx-auto mb-8 flex items-center justify-center shadow-lg shadow-emerald-900/50">
-               <img src={logoPath} alt="Logo" className="w-16 h-16 object-contain" />
+            <div className="w-24 h-24 bg-white rounded-full mx-auto mb-8 flex items-center justify-center shadow-lg shadow-emerald-900/50 overflow-hidden">
+               <img src={logoPath} alt="Logo" className="w-20 h-20 object-contain" />
             </div>
-            
+
             <h1 className="text-3xl font-bold text-white mb-2">{t.appTitle}</h1>
             <p className="text-emerald-200/80 mb-8 font-light">{t.loginSub}</p>
 
             <div className="space-y-4">
+
+              <input
+                type="email"
+                placeholder={t.email || 'Email'}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+
+              <input
+                type="password"
+                placeholder={t.password || 'Password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+
+              {errorMsg && (
+                <div className="text-red-300 text-sm font-medium">{errorMsg}</div>
+              )}
+
               <button 
-                onClick={handleGuestLogin}
+                onClick={handleSignIn}
+                disabled={loading}
                 className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-emerald-500/20 transition flex items-center justify-center gap-3"
               >
                 {loading ? (
@@ -1171,7 +1213,7 @@ export default function App() {
                    </>
                 )}
               </button>
-              
+
               <div className="pt-6 border-t border-white/10 flex justify-center">
                  <div className="w-40">
                    <LanguageSelector 
@@ -1189,8 +1231,6 @@ export default function App() {
       </div>
      );
   }
-
-  const displayMemberName = memberData?.name || t.guest;
 
   // --- LOGGED IN APP ---
   return (
