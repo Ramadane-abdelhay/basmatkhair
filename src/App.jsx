@@ -155,7 +155,7 @@ export default function App() {
           });
 
           // store unsubscribe function on the user object so we can cleanup when user signs out
-          (u as any).__unsubDonations = unsubDon;
+          u.__unsubDonations = unsubDon;
         } else {
           setMemberData(null);
           setIsAdmin(false);
@@ -187,8 +187,8 @@ export default function App() {
   const handleSignOut = async () => {
     try {
       // cleanup donation subscription if present
-      if (user && (user as any).__unsubDonations) {
-        (user as any).__unsubDonations();
+      if (user && (user).__unsubDonations) {
+        (user).__unsubDonations();
       }
     } catch (e) { }
     await signOut(auth);
