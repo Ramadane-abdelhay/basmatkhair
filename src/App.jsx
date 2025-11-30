@@ -360,11 +360,13 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
 };
 
 const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang }) => {
+  // Trigger auto-print if requested
   useEffect(() => {
     if (autoPrint) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         window.print();
-      }, 500); 
+      }, 500); // Small delay to ensure rendering
+      return () => clearTimeout(timer);
     }
   }, [autoPrint]);
 
@@ -375,11 +377,12 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
   if (!donation) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden print:shadow-none print:w-full print:max-w-none print:rounded-none">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
+      {/* Modal Container - Scrollable on mobile */}
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:rounded-none print:overflow-visible">
         
         {/* Header - Hidden on Print */}
-        <div className="bg-slate-50 p-4 flex justify-between items-center border-b print:hidden" dir={t.dir}>
+        <div className="bg-slate-50 p-4 flex justify-between items-center border-b shrink-0 print:hidden" dir={t.dir}>
           <div className="flex items-center gap-2 text-slate-700 font-bold">
             <Receipt size={20} className="text-emerald-600" />
             <span>{t.viewReceipt}</span>
@@ -390,7 +393,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
               className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-900 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
             >
               <Printer size={16} />
-              {t.printReceipt}
+              <span className="hidden sm:inline">{t.printReceipt}</span>
             </button>
             <button 
               onClick={onClose}
@@ -401,105 +404,118 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
           </div>
         </div>
 
-        {/* Printable Area */}
-        <div id="receipt-print-area" className={`p-10 print:p-8 bg-white ${lang === 'ar' ? 'text-right' : 'text-left'} relative`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        {/* Scrollable Preview Area */}
+        <div className="overflow-y-auto p-4 md:p-8 bg-slate-100/50 print:p-0 print:bg-white print:overflow-visible">
           
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none print:opacity-[0.05]">
-             <img src={logoPath} className="w-96 h-96 object-contain grayscale" />
-          </div>
-
-          <div className="relative z-10 border-2 border-slate-800 p-8 print:border-2 print:border-black h-full">
+          {/* Printable Receipt Paper */}
+          <div id="receipt-print-area" className={`bg-white p-6 md:p-10 shadow-sm border border-slate-200 mx-auto max-w-lg md:max-w-full print:max-w-none print:shadow-none print:border-0 print:p-0 ${lang === 'ar' ? 'text-right' : 'text-left'} relative overflow-hidden`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
             
-            <div className="flex justify-between items-start mb-8 border-b-2 border-slate-100 pb-6">
-              <div className="w-1/3">
-                <img 
-                  src={logoPath} 
-                  alt="Logo" 
-                  className="w-24 h-auto object-contain"
-                  onError={(e) => {e.target.onerror = null; e.target.src = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/logo-basmat.png";}}
-                />
-              </div>
-              <div className={`w-2/3 ${lang === 'ar' ? 'text-left' : 'text-right'} pt-1`}>
-                <h1 className="text-xl font-bold text-slate-900 mb-1">{t.receiptAssocName}</h1>
-                <p className="text-slate-500 text-xs font-medium">{t.subTitle}</p>
-                <div className="mt-2 text-[10px] text-slate-400">
-                  <p>123-456</p>
-                  <p>0537000000</p>
+            {/* Watermark */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none print:opacity-[0.05]">
+               <img src={logoPath} className="w-64 h-64 md:w-96 md:h-96 object-contain grayscale" />
+            </div>
+
+            <div className="relative z-10 h-full flex flex-col justify-between">
+              
+              {/* Receipt Header */}
+              <div className="flex flex-col md:flex-row print:flex-row justify-between items-center md:items-start border-b-2 border-slate-100 pb-6 mb-6 gap-4 text-center md:text-start print:text-start print:items-start">
+                <div className="w-24 md:w-1/3 print:w-1/3 flex justify-center md:justify-start print:justify-start">
+                  <img 
+                    src={logoPath} 
+                    alt="Logo" 
+                    className="w-20 md:w-24 h-auto object-contain"
+                    onError={(e) => {e.target.onerror = null; e.target.src = "https://via.placeholder.com/150?text=Logo";}}
+                  />
+                </div>
+                <div className={`md:w-2/3 print:w-2/3 pt-1`}>
+                  <h1 className="text-lg md:text-xl font-bold text-slate-900 mb-1">{t.receiptAssocName}</h1>
+                  <p className="text-slate-500 text-xs font-medium">{t.subTitle}</p>
+                  <div className="mt-2 text-[10px] text-slate-400">
+                    <p>123-456</p>
+                    <p>0537000000</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex justify-between items-end mb-10">
-              <div>
-                 <span className="block text-xs text-slate-400 mb-1">{t.dateFixed}</span>
-                 <span className="font-bold text-slate-800">{formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'en-US')}</span>
+              {/* Date & Title */}
+              <div className="flex flex-col md:flex-row print:flex-row justify-between items-center md:items-end mb-8 gap-4">
+                <div className="text-center md:text-start print:text-start order-2 md:order-1 print:order-1">
+                   <span className="block text-xs text-slate-400 mb-1">{t.dateFixed}</span>
+                   <span className="font-bold text-slate-800">{formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'en-US')}</span>
+                </div>
+                <div className="text-center order-1 md:order-2 print:order-2">
+                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide border-b-4 border-emerald-500 pb-1 inline-block">
+                    {t.receiptTitle}
+                  </h2>
+                  <p className="mt-2 text-sm font-mono text-slate-500">N° {String(donation.operationNumber).padStart(6, '0')}</p>
+                </div>
               </div>
-              <div className="text-center">
-                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide border-b-4 border-emerald-500 pb-1 inline-block">
-                  {t.receiptTitle}
-                </h2>
-                <p className="mt-2 text-sm font-mono text-slate-500">N° {String(donation.operationNumber).padStart(6, '0')}</p>
-              </div>
-            </div>
 
-            <div className="bg-slate-50/50 rounded-lg p-6 border border-slate-100 print:bg-transparent print:border-slate-200 space-y-5">
+              {/* Data Table */}
+              <div className="bg-slate-50/50 rounded-lg p-4 md:p-6 border border-slate-100 print:bg-transparent print:border-slate-200 space-y-4 md:space-y-5">
+                
+                <div className="flex flex-col md:flex-row print:flex-row items-start md:items-center gap-1 md:gap-0">
+                  <span className="w-32 text-slate-500 font-bold text-sm">{t.receiptName}</span>
+                  <span className="flex-1 w-full md:w-auto font-bold text-lg text-slate-900 border-b border-dashed border-slate-300 pb-1">
+                    {donation.donorName || t.guest}
+                  </span>
+                </div>
+
+                <div className="flex flex-col md:flex-row print:flex-row items-start md:items-center gap-1 md:gap-0">
+                  <span className="w-32 text-slate-500 font-bold text-sm">{t.receiptAmount}</span>
+                  <span className="flex-1 w-full md:w-auto font-bold text-xl text-emerald-700 dir-ltr border-b border-dashed border-slate-300 pb-1">
+                    {formatMoney(donation.amount)}
+                  </span>
+                </div>
+
+                <div className="flex flex-col md:flex-row print:flex-row items-start md:items-center gap-1 md:gap-0">
+                  <span className="w-32 text-slate-500 font-bold text-sm">{t.receiptMethod}</span>
+                  <span className="flex-1 w-full md:w-auto font-medium text-slate-800 border-b border-dashed border-slate-300 pb-1">
+                    {t.methods[donation.paymentMethod?.toLowerCase().replace(/\s/g, '')] || donation.paymentMethod}
+                    {donation.bankDetails && <span className="text-sm text-slate-500 mx-2">({donation.bankDetails})</span>}
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer / Signatures */}
+              <div className="mt-8 md:mt-12 flex flex-col md:flex-row print:flex-row justify-between items-center md:items-end gap-8 md:gap-0">
+                 <div className="text-center w-40">
+                    <p className="font-bold text-slate-800 text-sm mb-3">{t.receiptSignature}</p>
+                    <div className="h-16 md:h-20 w-full border-b border-slate-300 flex items-end justify-center pb-2">
+                       <span className="font-script text-xl md:text-2xl text-slate-400 opacity-50 font-medium whitespace-nowrap">{donation.memberName}</span>
+                    </div>
+                 </div>
+                 
+                 <div className="text-center md:text-left print:text-left max-w-[200px]">
+                    <p className="text-emerald-800/80 font-bold italic text-sm leading-relaxed border-l-0 md:border-l-4 print:border-l-4 border-emerald-500 pl-0 md:pl-3 print:pl-3">
+                      "{t.receiptFooter}"
+                    </p>
+                 </div>
+              </div>
               
-              <div className="flex items-center">
-                <span className="w-32 text-slate-500 font-bold text-sm">{t.receiptName}</span>
-                <span className="flex-1 font-bold text-lg text-slate-900 border-b border-dashed border-slate-300 pb-1">
-                  {donation.donorName || t.guest}
-                </span>
+              <div className="mt-8 md:mt-12 border-t border-dashed border-slate-300 pt-2 flex justify-between text-[10px] text-slate-300 print:flex hidden">
+                 <span>COPY</span>
+                 <span>BASMAT-KHAIR-APP</span>
               </div>
-
-              <div className="flex items-center">
-                <span className="w-32 text-slate-500 font-bold text-sm">{t.receiptAmount}</span>
-                <span className="flex-1 font-bold text-xl text-emerald-700 dir-ltr border-b border-dashed border-slate-300 pb-1">
-                  {formatMoney(donation.amount)}
-                </span>
-              </div>
-
-              <div className="flex items-center">
-                <span className="w-32 text-slate-500 font-bold text-sm">{t.receiptMethod}</span>
-                <span className="flex-1 font-medium text-slate-800 border-b border-dashed border-slate-300 pb-1">
-                  {t.methods[donation.paymentMethod?.toLowerCase().replace(/\s/g, '')] || donation.paymentMethod}
-                  {donation.bankDetails && <span className="text-sm text-slate-500 mx-2">({donation.bankDetails})</span>}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-12 flex justify-between items-end">
-               <div className="text-center w-40">
-                  <p className="font-bold text-slate-800 text-sm mb-3">{t.receiptSignature}</p>
-                  <div className="h-20 w-full border-b border-slate-300 flex items-end justify-center pb-2">
-                     <span className="font-script text-2xl text-slate-400 opacity-50 font-medium">{donation.memberName}</span>
-                  </div>
-               </div>
-               
-               <div className="text-left max-w-[200px]">
-                  <p className="text-emerald-800/80 font-bold italic text-sm leading-relaxed border-l-4 border-emerald-500 pl-3">
-                    "{t.receiptFooter}"
-                  </p>
-               </div>
-            </div>
-            
-            <div className="mt-12 border-t border-dashed border-slate-300 pt-2 flex justify-between text-[10px] text-slate-300 print:flex hidden">
-               <span>COPY</span>
-               <span>{appId}</span>
             </div>
           </div>
         </div>
       </div>
       
+      {/* Styles to enforce Print Layout regardless of screen size */}
       <style>{`
         @media print {
           @page { size: auto; margin: 0mm; } 
-          body { background: white; }
+          body { background: white; margin: 0; padding: 0; }
           body * { visibility: hidden; height: 0; overflow: hidden; }
+          
+          /* Show only the receipt area */
           #receipt-print-area, #receipt-print-area * { 
             visibility: visible; 
             height: auto; 
             overflow: visible; 
           }
+          
           #receipt-print-area {
             position: fixed;
             left: 0;
@@ -507,11 +523,23 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
             width: 100%;
             height: 100%;
             margin: 0;
-            padding: 20px;
+            padding: 40px !important; /* Force padding on print */
             background: white;
             z-index: 9999;
             display: block !important;
+            border: 2px solid #000 !important; /* Optional border for print clarity */
           }
+
+          /* Force Desktop layout properties on Print */
+          .print\\:flex-row { flex-direction: row !important; }
+          .print\\:text-start { text-align: start !important; }
+          .print\\:text-left { text-align: left !important; }
+          .print\\:items-start { align-items: flex-start !important; }
+          .print\\:justify-start { justify-content: flex-start !important; }
+          .print\\:w-1\\/3 { width: 33.333333% !important; }
+          .print\\:w-2\\/3 { width: 66.666667% !important; }
+          .print\\:border-l-4 { border-left-width: 4px !important; }
+          .print\\:pl-3 { padding-left: 0.75rem !important; }
         }
       `}</style>
     </div>
