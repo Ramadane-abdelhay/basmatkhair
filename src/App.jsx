@@ -8,7 +8,7 @@ import {
   signOut,
   setPersistence,
   browserSessionPersistence,
-  browserLocalPersistence // <--- Added this import
+  browserLocalPersistence
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -50,8 +50,11 @@ import {
   ArrowLeft, 
   Globe, 
   Languages, 
-  LogIn 
+  LogIn,
+  FileSpreadsheet
 } from 'lucide-react';
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 // --- 1. CONFIGURATION & SETUP ---
 
@@ -85,7 +88,7 @@ const TRANSLATIONS = {
   ar: {
     dir: 'rtl',
     langName: "العربية",
-    appTitle: "جمعية بسمة خير",
+    appTitle: "جمعية بصمة خير",
     subTitle: "للأعمال الاجتماعية والخيرية",
     dashboard: "الرئيسية",
     add: "تبرع جديد",
@@ -126,7 +129,7 @@ const TRANSLATIONS = {
     },
     email: "البريد الإلكتروني",
     password: "كلمة المرور",
-    rememberMe: "تذكرني", // <--- Added Translation
+    rememberMe: "تذكرني", 
     invalidCreds: "خطاء في البريد أو كلمة المرور",
     errorAmount: "المرجو إدخال مبلغ صحيح",
     successMsg: "تمت العملية بنجاح",
@@ -137,20 +140,22 @@ const TRANSLATIONS = {
     delete: "حذف",
     opNumber: "رقم العملية",
     receivedBy: "المستلم",
-    receiptTitle: "وصل أداء",
-    receiptAssocName: "جمعية بسمة خير للأعمال الاجتماعية",
+    receiptTitle: "وصل تبرع",
+    receiptAssocName: "جمعية بصمة خير للأعمال الاجتماعية",
     receiptFooter: "شكراً لانخراطكم ودعمكم لأنشطة الجمعية",
     receiptSignature: "توقيع المستلم",
     receiptName: "الاسم الكامل",
-    receiptAmount: "المبلغ",
-    receiptDate: "التاريخ",
-    receiptMethod: "طريقة الأداء",
+    receiptAmount: "المبلغ المؤدى",
+    receiptDate: "تاريخ الأداء",
+    receiptMethod: "بواسطة",
     deleteConfirm: "هل أنت متأكد من حذف هذا السجل نهائياً؟",
     loginTitle: "بوابة الأعضاء",
     loginSub: "تسجيل الدخول للمتابعة",
     btnEnter: "دخول النظام",
     loginAsGuest: "دخول كضيف",
-    selectLang: "اختر اللغة"
+    selectLang: "اختر اللغة",
+    exportSheet: "تصدير البيانات (Excel)",
+    currency: "درهم"
   },
   en: {
     dir: 'ltr',
@@ -196,7 +201,7 @@ const TRANSLATIONS = {
     },
     email: "Email",
     password: "Password",
-    rememberMe: "Remember Me", // <--- Added Translation
+    rememberMe: "Remember Me", 
     invalidCreds: "Invalid email or password",
     errorAmount: "Please enter a valid amount",
     successMsg: "Operation successful",
@@ -207,20 +212,22 @@ const TRANSLATIONS = {
     delete: "Delete",
     opNumber: "Op Number",
     receivedBy: "Received By",
-    receiptTitle: "Payment Receipt",
+    receiptTitle: "Donation Receipt",
     receiptAssocName: "Basmat Khair Association",
     receiptFooter: "Thank you for your support",
     receiptSignature: "Recipient Signature",
     receiptName: "Full Name",
-    receiptAmount: "Amount",
-    receiptDate: "Date",
-    receiptMethod: "Payment Method",
+    receiptAmount: "Amount Paid",
+    receiptDate: "Payment Date",
+    receiptMethod: "Via",
     deleteConfirm: "Are you sure you want to permanently delete this record?",
     loginTitle: "Member Portal",
     loginSub: "Please log in to continue",
     btnEnter: "Enter System",
     loginAsGuest: "Enter as Guest",
-    selectLang: "Select Language"
+    selectLang: "Select Language",
+    exportSheet: "Export Sheet (Excel)",
+    currency: "MAD"
   },
   fr: {
     dir: 'ltr',
@@ -266,7 +273,7 @@ const TRANSLATIONS = {
     },
     email: "E-mail",
     password: "Mot de passe",
-    rememberMe: "Se souvenir de moi", // <--- Added Translation
+    rememberMe: "Se souvenir de moi",
     invalidCreds: "Email ou mot de passe incorrect",
     errorAmount: "Veuillez entrer un montant valide",
     successMsg: "Opération réussie",
@@ -277,20 +284,22 @@ const TRANSLATIONS = {
     delete: "Supprimer",
     opNumber: "N° Opération",
     receivedBy: "Reçu Par",
-    receiptTitle: "Reçu de Paiement",
+    receiptTitle: "Reçu de Don",
     receiptAssocName: "Association Basmat Khair",
     receiptFooter: "Merci pour votre soutien",
     receiptSignature: "Signature",
     receiptName: "Nom Complet",
-    receiptAmount: "Montant",
-    receiptDate: "Date",
-    receiptMethod: "Méthode",
+    receiptAmount: "Montant Payé",
+    receiptDate: "Date de Paiement",
+    receiptMethod: "Par",
     deleteConfirm: "Êtes-vous sûr de vouloir supprimer cet enregistrement ?",
     loginTitle: "Portail Membres",
     loginSub: "Veuillez vous connecter",
     btnEnter: "Entrer au Système",
     loginAsGuest: "Entrer comme Invité",
-    selectLang: "Choisir la Langue"
+    selectLang: "Choisir la Langue",
+    exportSheet: "Exporter (Excel)",
+    currency: "MAD"
   }
 };
 
@@ -311,7 +320,30 @@ const formatDate = (date, locale = 'ar-MA') => {
   });
 };
 
+const formatTime = (date, locale = 'ar-MA') => {
+  if (!date) return '';
+  const dateObj = date.toDate ? date.toDate() : new Date(date);
+  return dateObj.toLocaleTimeString(locale, {
+    hour: '2-digit', minute: '2-digit'
+  });
+};
+
 // --- 4. COMPONENTS ---
+
+// New Preloader Component
+const Preloader = () => (
+  <div className="fixed inset-0 z-[200] bg-slate-50 flex flex-col items-center justify-center animate-in fade-in duration-300">
+    <div className="relative w-24 h-24 mb-8">
+      <div className="absolute inset-0 border-4 border-slate-200 rounded-full"></div>
+      <div className="absolute inset-0 border-4 border-emerald-600 rounded-full border-t-transparent animate-spin"></div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-12 h-12 bg-emerald-600 rounded-full animate-pulse shadow-lg shadow-emerald-200"></div>
+      </div>
+    </div>
+    <h2 className="text-2xl font-black text-slate-800 animate-pulse">جاري التحميل...</h2>
+    <p className="text-slate-400 font-medium mt-2">يرجى الانتظار قليلاً</p>
+  </div>
+);
 
 // Language Selector Component
 const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = false }) => {
@@ -359,152 +391,199 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
   );
 };
 
-// IMPORTANT: Add these imports at the top of the file
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
-
 const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang }) => {
+  
+  // Signature Image URL provided by user
+  const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
 
-  // Auto Print
   useEffect(() => {
     if (autoPrint) {
-      const timer = setTimeout(() => window.print(), 500);
+      const timer = setTimeout(() => window.print(), 800);
       return () => clearTimeout(timer);
     }
   }, [autoPrint]);
 
   const handlePrint = () => window.print();
 
-  // ===========================
-  // 📌 NEW: Download PDF Function
-  // ===========================
   const downloadPDF = async () => {
     const element = document.getElementById("receipt-print-area");
+    if (!element) return;
 
-    const canvas = await html2canvas(element, {
-      scale: 3,
-      useCORS: true,
-      backgroundColor: "#ffffff",
-    });
+    try {
+      // Create a high-quality canvas of the receipt
+      const canvas = await html2canvas(element, {
+        scale: 2.5, // High resolution for text clarity
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false
+      });
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, "PNG", 0, position, pageWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft > 0) {
-      position -= pageHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, pageWidth, imgHeight);
-      heightLeft -= pageHeight;
+      const imgData = canvas.toDataURL("image/jpeg", 1.0);
+      const pdf = new jsPDF("p", "mm", "a5"); // A5 is better for receipts
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      // Calculate aspect ratio to fit width
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, imgHeight);
+      pdf.save(`Receipt_${donation.operationNumber}.pdf`);
+    } catch (err) {
+      console.error("PDF Generation failed", err);
+      alert("Error generating PDF. Please try printing to PDF using the print button.");
     }
-
-    pdf.save(`receipt_${donation.operationNumber}.pdf`);
   };
 
   if (!donation) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
-
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:rounded-none print:overflow-visible">
-
-        {/* Header */}
-        <div className="bg-slate-50 p-4 flex justify-between items-center border-b shrink-0 print:hidden" dir={t.dir}>
-          <div className="flex items-center gap-2 text-slate-700 font-bold">
-            <Receipt size={20} className="text-emerald-600" />
+      
+      <div className="bg-white w-full max-w-xl rounded-none md:rounded-2xl shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
+        
+        {/* Header Actions */}
+        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t.dir}>
+          <div className="flex items-center gap-2 text-white font-bold">
+            <Receipt size={20} className="text-emerald-400" />
             <span>{t.viewReceipt}</span>
           </div>
 
           <div className="flex gap-2">
-
-            {/* NEW: Download PDF Button */}
             <button
               onClick={downloadPDF}
-              className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
             >
               <Download size={16} />
-              <span className="hidden sm:inline">{t.downloadPDF || "Download PDF"}</span>
+              <span className="hidden sm:inline">{t.downloadPdf}</span>
             </button>
-
-            {/* Print Button */}
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-900 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
+              className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
             >
               <Printer size={16} />
               <span className="hidden sm:inline">{t.printReceipt}</span>
             </button>
-
-            {/* Close */}
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition"
             >
               <X size={24} />
             </button>
           </div>
         </div>
 
-        {/* Scrollable Preview */}
-        <div className="overflow-y-auto p-4 md:p-8 bg-slate-100/50 print:p-0 print:bg-white print:overflow-visible">
-
+        {/* Scrollable Preview Area */}
+        <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
+          
+          {/* --- NEW RECEIPT LAYOUT --- */}
           <div
             id="receipt-print-area"
-            className={`bg-white p-6 md:p-10 shadow-sm border border-slate-200 mx-auto max-w-lg md:max-w-full print:max-w-none print:shadow-none print:border-0 print:p-0 ${lang === 'ar' ? 'text-right' : 'text-left'} relative overflow-hidden`}
-            dir={lang === 'ar' ? 'rtl' : 'ltr'}
+            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm] md:min-h-0"
+            style={{ padding: '30px' }}
+            dir="rtl"
           >
+            {/* Border Box */}
+            <div className="border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
+              
+              {/* Background Watermark */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
+                 <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
+              </div>
 
-            {/* Watermark */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none print:opacity-[0.05]">
-              <img src={logoPath} className="w-64 h-64 md:w-96 md:h-96 object-contain grayscale" />
-            </div>
+              {/* 1. Header */}
+              <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
+                <div className="flex justify-center mb-4">
+                  <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
+                <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
+                <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
+                   رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
+                </div>
+              </div>
 
-            {/* Full Receipt Content (unchanged) */}
-            <div className="relative z-10 h-full flex flex-col justify-between">
+              {/* 2. Content Body (Dotted Lines) */}
+              <div className="flex-1 space-y-8 text-xl px-2">
+                
+                {/* Full Name */}
+                <div className="flex items-baseline w-full leading-loose">
+                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptName} :</span>
+                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800 relative bottom-[5px]">
+                     {donation.donorName || t.guest}
+                   </div>
+                </div>
 
-              {/* ---- Rest of your entire receipt stays EXACTLY as-is ---- */}
-              {/* ✔ Header */}
-              {/* ✔ Date & Title */}
-              {/* ✔ Data Table */}
-              {/* ✔ Signature */}
-              {/* ✔ Footer */}
-              {/* (All unchanged from your version) */}
+                {/* Amount */}
+                <div className="flex items-baseline w-full leading-loose">
+                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptAmount} :</span>
+                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900 relative bottom-[5px]">
+                     {formatMoney(donation.amount)} <span className="text-sm font-normal text-slate-500">({t.currency})</span>
+                   </div>
+                </div>
 
-              {/* ----------------------------------
-                  I did not modify your design at all.
-                 ---------------------------------- */}
+                {/* Date */}
+                <div className="flex items-baseline w-full leading-loose">
+                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptDate} :</span>
+                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800 relative bottom-[5px]">
+                     {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
+                   </div>
+                </div>
+
+              </div>
+
+              {/* 3. Footer / Signatures */}
+              <div className="mt-16 pt-8 flex justify-between items-start">
+                
+                {/* Received By */}
+                <div className="text-center w-1/2">
+                   <p className="font-bold text-slate-700 mb-2 underline underline-offset-4">{t.receivedBy}</p>
+                   <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
+                </div>
+
+                {/* Signature */}
+                <div className="text-center w-1/2 relative">
+                   <p className="font-bold text-slate-700 mb-4 underline underline-offset-4">{t.receiptSignature}</p>
+                   <div className="h-20 flex items-center justify-center">
+                      <img 
+                        src={signatureUrl} 
+                        className="max-h-24 object-contain mix-blend-multiply -rotate-6" 
+                        alt="Signature"
+                      />
+                   </div>
+                </div>
+              </div>
+
+              {/* Association Footer */}
+              <div className="mt-8 pt-4 border-t border-slate-200 text-center">
+                 <p className="text-[10px] text-slate-400">
+                    {t.receiptFooter} | {t.appTitle}
+                 </p>
+              </div>
+
             </div>
           </div>
         </div>
       </div>
-
-      {/* Print CSS */}
+      
       <style>{`
         @media print {
-          @page { size: auto; margin: 0mm; } 
-          body { background: white; margin: 0; padding: 0; }
-          body * { visibility: hidden; height: 0; overflow: hidden; }
-          #receipt-print-area, #receipt-print-area * { visibility: visible; height: auto; overflow: visible; }
+          @page { size: A5; margin: 0; }
+          body { background: white; }
           #receipt-print-area {
-            position: fixed; left: 0; top: 0; width: 100%; height: 100%;
-            margin: 0; padding: 40px !important; background: white; z-index: 9999;
-            border: 2px solid #000 !important;
+             width: 100% !important;
+             max-width: 100% !important;
+             height: 100% !important;
+             border: none !important;
+             box-shadow: none !important;
+             padding: 10mm !important;
           }
         }
       `}</style>
     </div>
   );
 };
-
 
 const ConfirmationModal = ({ data, onConfirm, onCancel, t }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in" dir={t.dir}>
@@ -692,6 +771,100 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
     setOpenMenu(openMenu === id ? null : id);
   };
 
+  // --- NEW: Professional Sheet Export ---
+  const handleExportExcel = () => {
+    
+    // 1. Define the content using HTML Table (This supports colors and merged cells in Excel)
+    let tableHTML = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="UTF-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>تبرعات الجمعية</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayRightToLeft/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: 'Arial', sans-serif; }
+          .header-title { font-size: 24px; font-weight: bold; color: #047857; text-align: center; height: 50px; }
+          .header-sub { font-size: 16px; font-weight: bold; color: #555; text-align: center; }
+          .table-head { background-color: #047857; color: #ffffff; font-weight: bold; text-align: center; border: 1px solid #000; }
+          .row-even { background-color: #f3fcf8; }
+          .row-odd { background-color: #ffffff; }
+          .cell { text-align: center; vertical-align: middle; border: 1px solid #ccc; padding: 5px; }
+          .amount { font-weight: bold; color: #047857; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <!-- Decorative Header -->
+          <tr>
+            <td colspan="6" class="header-title">جمعية بصمة خير للأعمال الاجتماعية</td>
+          </tr>
+          <tr>
+            <td colspan="6" class="header-sub">جميع تبرعات الجمعية (سجل شامل)</td>
+          </tr>
+          <tr><td colspan="6"></td></tr> <!-- Spacer -->
+          
+          <!-- Column Headers -->
+          <thead>
+            <tr>
+              <th class="table-head">رقم العملية</th>
+              <th class="table-head">التاريخ</th>
+              <th class="table-head">الاسم الكامل</th>
+              <th class="table-head">المبلغ (درهم)</th>
+              <th class="table-head">طريقة الأداء</th>
+              <th class="table-head">الملاحظات</th>
+            </tr>
+          </thead>
+          
+          <!-- Data Rows -->
+          <tbody>
+    `;
+
+    // 2. Loop through data
+    filteredDonations.forEach((d, index) => {
+      const rowClass = index % 2 === 0 ? 'row-even' : 'row-odd';
+      
+      tableHTML += `
+        <tr class="${rowClass}">
+          <td class="cell">#${d.operationNumber}</td>
+          <td class="cell">${formatDate(d.date)}</td>
+          <td class="cell" style="font-weight:bold;">${d.donorName || t.guest}</td>
+          <td class="cell amount">${d.amount}</td>
+          <td class="cell">${d.paymentMethod} ${d.bankDetails ? `(${d.bankDetails})` : ''}</td>
+          <td class="cell">${d.description || '-'}</td>
+        </tr>
+      `;
+    });
+
+    tableHTML += `
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    // 3. Create Blob and Download
+    const blob = new Blob([tableHTML], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Basmat_Khair_Donations_${new Date().toISOString().slice(0,10)}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-full pb-24" dir={t.dir}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -703,15 +876,28 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
           <p className="text-slate-400 text-sm mt-1">{filteredDonations.length} {t.totalOps}</p>
         </div>
         
-        <div className="relative w-full md:w-96">
-           <Search className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-slate-400`} size={18} />
-           <input 
-             type="text" 
-             placeholder={t.searchPlaceholder}
-             className={`w-full ${t.dir === 'rtl' ? 'pr-11 pl-4' : 'pl-11 pr-4'} py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition`}
-             value={searchTerm}
-             onChange={(e) => setSearchTerm(e.target.value)}
-           />
+        <div className="flex gap-2 w-full md:w-auto">
+          {/* SEARCH BAR */}
+          <div className="relative flex-1 md:w-80">
+            <Search className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-slate-400`} size={18} />
+            <input 
+              type="text" 
+              placeholder={t.searchPlaceholder}
+              className={`w-full ${t.dir === 'rtl' ? 'pr-11 pl-4' : 'pl-11 pr-4'} py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          {/* EXPORT BUTTON */}
+          <button 
+            onClick={handleExportExcel}
+            title={t.exportSheet}
+            className="px-4 py-3 bg-white border border-slate-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200 rounded-xl shadow-sm transition flex items-center gap-2 font-bold"
+          >
+            <FileSpreadsheet size={20} />
+            <span className="hidden sm:inline">{t.exportSheet?.split(' ')[0] || "Export"}</span>
+          </button>
         </div>
       </div>
       
@@ -1006,20 +1192,18 @@ export default function App() {
   const [memberData, setMemberData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  // NEW: State to hold current user info to extract email
   const [currentUser, setCurrentUser] = useState(null);
 
-  // --- LOGIN FORM STATE (email/password) ---
+  // --- LOGIN FORM STATE ---
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false); // <--- Added Remember Me State
+  const [rememberMe, setRememberMe] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      // <--- Modified Sign In Logic to support persistence --->
       const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
       await setPersistence(auth, persistenceType);
 
@@ -1034,7 +1218,6 @@ export default function App() {
     }
   };
   
-  // Sidebar Language Dropdown State
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
 
   // Receipt State
@@ -1052,10 +1235,6 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // <--- REMOVED FORCED SESSION PERSISTENCE HERE --->
-        // Previously: await setPersistence(auth, browserSessionPersistence);
-        // We let firebase manage persistence state or set it on login.
-
         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         if (token) {
           await signInWithCustomToken(auth, token);
@@ -1072,7 +1251,7 @@ export default function App() {
     
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUserId(user ? user.uid : null);
-      setCurrentUser(user); // Capture the full user object
+      setCurrentUser(user);
       setAuthReady(true);
       if(!user) {
         setLoading(false);
@@ -1093,7 +1272,7 @@ export default function App() {
            setMemberData(snap.data());
            setIsAdmin(snap.data().isAdmin || false);
          } else {
-            setMemberData(null); // Reset to null if not found so we check email
+            setMemberData(null);
          }
          setLoading(false);
        });
@@ -1112,10 +1291,6 @@ export default function App() {
     }
   }, [authReady, userId]);
 
-  // LOGIC TO DETERMINE DISPLAY NAME
-  // 1. Try memberData.name (from Firestore)
-  // 2. Try slicing the email before '@' (from Auth)
-  // 3. Fallback to "Guest"
   const displayMemberName = useMemo(() => {
     if (memberData && memberData.name) return memberData.name;
     if (currentUser && currentUser.email) return currentUser.email.split('@')[0];
@@ -1165,8 +1340,11 @@ export default function App() {
       setReceiptData(data);
     }
     if (type === 'print' || type === 'download') {
-      setAutoPrint(true);
+      setAutoPrint(type === 'print');
       setReceiptData(data);
+      if(type === 'download') {
+         // The modal itself handles the download button now
+      }
     }
   };
 
@@ -1203,7 +1381,6 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:ring-2 focus:ring-emerald-500 outline-none"
               />
 
-              {/* <--- ADDED REMEMBER ME CHECKBOX HERE ---> */}
               <div className="flex items-center gap-3 px-2">
                  <input 
                    type="checkbox" 
@@ -1258,6 +1435,8 @@ export default function App() {
   return (
     <div className={`min-h-screen bg-slate-50 flex font-sans text-slate-800 selection:bg-emerald-100 selection:text-emerald-900`} dir={t.dir}>
       
+      {loading && <Preloader />}
+
       {receiptData && (
         <ReceiptModal 
           donation={receiptData} 
