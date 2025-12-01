@@ -673,9 +673,8 @@ const downloadPDF = async () => {
                 {/* Header */}
                 <header className="text-center border-b-2 border-slate-900 pb-8">
                   <div className="flex justify-center mb-6">
-                    <img src={logoPath} className="h-[28mm] object-contain" alt="Logo" />
+                    <img src={logoPath} className="h-[55mm] object-contain" alt="Logo" />
                   </div>
-                  <h1 className="text-3xl font-extrabold text-slate-900 mb-2">{t.appTitle}</h1>
                   <p className="text-lg font-semibold text-slate-600">{t.subTitle}</p>
                   
                   {/* Corrected Receipt Number Layout using Flexbox for precise RTL alignment */}
