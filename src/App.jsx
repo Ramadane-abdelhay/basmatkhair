@@ -475,57 +475,86 @@ const ReceiptModal = ({
 
   const handlePrint = () => window.print();
 
-  // 4. Robust PDF Download
-  const downloadPDF = async () => {
-    if (!libsLoaded) {
-      alert("Please wait for PDF tools to load...");
-      return;
-    }
+  // 4. Robust Desktop-Rendered PDF Download (mobile-safe)
+const downloadPDF = async () => {
+  if (!libsLoaded) {
+    alert("Please wait for PDF tools to load...");
+    return;
+  }
 
-    const element = printAreaRef.current;
-    if (!element) return;
-    
-    setIsGenerating(true);
+  const original = printAreaRef.current;
+  if (!original) return;
 
-    try {
-      const html2canvas = window.html2canvas;
-      const { jsPDF } = window.jspdf;
+  setIsGenerating(true);
 
-      // Force high resolution and desktop-like environment
-      const canvas = await html2canvas(element, {
-        scale: 2, 
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        // Crucial: Set window dimensions to desktop size to prevent mobile layout shifts
-        windowWidth: 1200, 
-        windowHeight: 1200,
-        onclone: (clonedDoc) => {
-          const clonedElement = clonedDoc.getElementById("receipt-print-area");
-          if (clonedElement) {
-            // Reset any scaling transforms on the clone so it captures at full size
-            clonedElement.style.transform = "none";
-            clonedElement.style.margin = "0";
-            // Force fonts in the clone
-            clonedElement.style.fontFamily = "'Cairo', sans-serif";
-          }
-        }
-      });
+  try {
+    const html2canvas = window.html2canvas;
+    const { jsPDF } = window.jspdf;
 
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+    // ---------------------------------------------
+    // 1. Create a hidden DESKTOP-SIZED container
+    // ---------------------------------------------
+    const wrapper = document.createElement("div");
+    wrapper.id = "desktop-pdf-wrapper";
+    wrapper.style.position = "fixed";
+    wrapper.style.top = "-3000px";
+    wrapper.style.left = "0";
+    wrapper.style.width = "1200px";        // FORCE desktop width
+    wrapper.style.background = "white";
+    wrapper.style.zIndex = "-999999";
+    wrapper.style.opacity = "0";
 
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`);
-    } catch (err) {
-      console.error("PDF Generation failed", err);
-      alert("Error generating PDF. Please use the Print button fallback.");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+    document.body.appendChild(wrapper);
+
+    // ---------------------------------------------
+    // 2. Clone the receipt WITHOUT mobile scaling
+    // ---------------------------------------------
+    const clone = original.cloneNode(true);
+
+    clone.style.transform = "none";
+    clone.style.width = "210mm";          // A4
+    clone.style.height = "297mm";         // A4
+    clone.style.margin = "0";
+    clone.style.fontFamily = "'Cairo', sans-serif";
+
+    wrapper.appendChild(clone);
+
+    // ---------------------------------------------
+    // 3. Render the desktop clone
+    // ---------------------------------------------
+    const canvas = await html2canvas(clone, {
+      scale: 3,            // SUPER CLEAR export
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      windowWidth: 1200,    // Force PC layout
+      windowHeight: 1600,
+    });
+
+    // ---------------------------------------------
+    // 4. Export as JPEG (80% smaller file than PNG)
+    // ---------------------------------------------
+    const imgData = canvas.toDataURL("image/jpeg", 0.78);
+
+    const pdf = new jsPDF("p", "mm", "a4");
+    pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+
+    pdf.save(
+      `Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`
+    );
+
+  } catch (err) {
+    console.error("PDF Generation failed", err);
+    alert("Error generating PDF. Please use the Print button fallback.");
+  } finally {
+    // Cleanup hidden clone
+    const temp = document.getElementById("desktop-pdf-wrapper");
+    if (temp) temp.remove();
+
+    setIsGenerating(false);
+  }
+};
+
 
   const formatMoney = (v) => {
     try {
