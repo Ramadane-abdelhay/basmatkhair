@@ -8,7 +8,7 @@ import {
   signOut,
   setPersistence,
   browserSessionPersistence,
-  browserLocalPersistence // <--- Added this import
+  browserLocalPersistence
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -50,8 +50,11 @@ import {
   ArrowLeft, 
   Globe, 
   Languages, 
-  LogIn 
+  LogIn,
+  FileSpreadsheet // Added for the Sheet export
 } from 'lucide-react';
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 // --- 1. CONFIGURATION & SETUP ---
 
@@ -126,7 +129,7 @@ const TRANSLATIONS = {
     },
     email: "البريد الإلكتروني",
     password: "كلمة المرور",
-    rememberMe: "تذكرني", // <--- Added Translation
+    rememberMe: "تذكرني", 
     invalidCreds: "خطاء في البريد أو كلمة المرور",
     errorAmount: "المرجو إدخال مبلغ صحيح",
     successMsg: "تمت العملية بنجاح",
@@ -137,20 +140,22 @@ const TRANSLATIONS = {
     delete: "حذف",
     opNumber: "رقم العملية",
     receivedBy: "المستلم",
-    receiptTitle: "وصل أداء",
+    receiptTitle: "وصل تبرع",
     receiptAssocName: "جمعية بسمة خير للأعمال الاجتماعية",
     receiptFooter: "شكراً لانخراطكم ودعمكم لأنشطة الجمعية",
     receiptSignature: "توقيع المستلم",
-    receiptName: "الاسم الكامل",
-    receiptAmount: "المبلغ",
-    receiptDate: "التاريخ",
-    receiptMethod: "طريقة الأداء",
+    receiptName: "السيد(ة)",
+    receiptAmount: "مبلغ وقدره",
+    receiptDate: "حرر في",
+    receiptMethod: "بواسطة",
     deleteConfirm: "هل أنت متأكد من حذف هذا السجل نهائياً؟",
     loginTitle: "بوابة الأعضاء",
     loginSub: "تسجيل الدخول للمتابعة",
     btnEnter: "دخول النظام",
     loginAsGuest: "دخول كضيف",
-    selectLang: "اختر اللغة"
+    selectLang: "اختر اللغة",
+    exportSheet: "تصدير البيانات (Excel)",
+    currency: "درهم"
   },
   en: {
     dir: 'ltr',
@@ -196,7 +201,7 @@ const TRANSLATIONS = {
     },
     email: "Email",
     password: "Password",
-    rememberMe: "Remember Me", // <--- Added Translation
+    rememberMe: "Remember Me", 
     invalidCreds: "Invalid email or password",
     errorAmount: "Please enter a valid amount",
     successMsg: "Operation successful",
@@ -207,20 +212,22 @@ const TRANSLATIONS = {
     delete: "Delete",
     opNumber: "Op Number",
     receivedBy: "Received By",
-    receiptTitle: "Payment Receipt",
+    receiptTitle: "Donation Receipt",
     receiptAssocName: "Basmat Khair Association",
     receiptFooter: "Thank you for your support",
     receiptSignature: "Recipient Signature",
-    receiptName: "Full Name",
-    receiptAmount: "Amount",
+    receiptName: "Received From",
+    receiptAmount: "The Sum of",
     receiptDate: "Date",
-    receiptMethod: "Payment Method",
+    receiptMethod: "Via",
     deleteConfirm: "Are you sure you want to permanently delete this record?",
     loginTitle: "Member Portal",
     loginSub: "Please log in to continue",
     btnEnter: "Enter System",
     loginAsGuest: "Enter as Guest",
-    selectLang: "Select Language"
+    selectLang: "Select Language",
+    exportSheet: "Export Sheet (CSV)",
+    currency: "MAD"
   },
   fr: {
     dir: 'ltr',
@@ -266,7 +273,7 @@ const TRANSLATIONS = {
     },
     email: "E-mail",
     password: "Mot de passe",
-    rememberMe: "Se souvenir de moi", // <--- Added Translation
+    rememberMe: "Se souvenir de moi",
     invalidCreds: "Email ou mot de passe incorrect",
     errorAmount: "Veuillez entrer un montant valide",
     successMsg: "Opération réussie",
@@ -277,20 +284,22 @@ const TRANSLATIONS = {
     delete: "Supprimer",
     opNumber: "N° Opération",
     receivedBy: "Reçu Par",
-    receiptTitle: "Reçu de Paiement",
+    receiptTitle: "Reçu de Don",
     receiptAssocName: "Association Basmat Khair",
     receiptFooter: "Merci pour votre soutien",
     receiptSignature: "Signature",
-    receiptName: "Nom Complet",
-    receiptAmount: "Montant",
-    receiptDate: "Date",
-    receiptMethod: "Méthode",
+    receiptName: "Reçu de Mr/Mme",
+    receiptAmount: "La somme de",
+    receiptDate: "Fait le",
+    receiptMethod: "Par",
     deleteConfirm: "Êtes-vous sûr de vouloir supprimer cet enregistrement ?",
     loginTitle: "Portail Membres",
     loginSub: "Veuillez vous connecter",
     btnEnter: "Entrer au Système",
     loginAsGuest: "Entrer comme Invité",
-    selectLang: "Choisir la Langue"
+    selectLang: "Choisir la Langue",
+    exportSheet: "Exporter (Excel)",
+    currency: "MAD"
   }
 };
 
@@ -308,6 +317,14 @@ const formatDate = (date, locale = 'ar-MA') => {
   const dateObj = date.toDate ? date.toDate() : new Date(date);
   return dateObj.toLocaleDateString(locale, {
     year: 'numeric', month: 'long', day: 'numeric'
+  });
+};
+
+const formatTime = (date, locale = 'ar-MA') => {
+  if (!date) return '';
+  const dateObj = date.toDate ? date.toDate() : new Date(date);
+  return dateObj.toLocaleTimeString(locale, {
+    hour: '2-digit', minute: '2-digit'
   });
 };
 
@@ -359,65 +376,58 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
   );
 };
 
-// IMPORTANT: Add these imports at the top of the file
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
-
 const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang }) => {
+  
+  // Signature Image URL provided by user
+  const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
 
-  // Auto Print
   useEffect(() => {
     if (autoPrint) {
-      const timer = setTimeout(() => window.print(), 500);
+      const timer = setTimeout(() => window.print(), 800);
       return () => clearTimeout(timer);
     }
   }, [autoPrint]);
 
   const handlePrint = () => window.print();
 
-  // ===========================
-  // 📌 NEW: Download PDF Function
-  // ===========================
   const downloadPDF = async () => {
     const element = document.getElementById("receipt-print-area");
+    if (!element) return;
 
-    const canvas = await html2canvas(element, {
-      scale: 3,
-      useCORS: true,
-      backgroundColor: "#ffffff",
-    });
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2, // Better quality
+        useCORS: true, // Crucial for images
+        backgroundColor: "#ffffff",
+        logging: false
+      });
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, "PNG", 0, position, pageWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft > 0) {
-      position -= pageHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, pageWidth, imgHeight);
-      heightLeft -= pageHeight;
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      // Calculate aspect ratio to fit width
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, imgHeight);
+      pdf.save(`Donation_${donation.operationNumber}.pdf`);
+    } catch (err) {
+      console.error("PDF Generation failed", err);
+      alert("Error generating PDF. Please try printing to PDF instead.");
     }
-
-    pdf.save(`receipt_${donation.operationNumber}.pdf`);
   };
 
   if (!donation) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
-
+      
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:rounded-none print:overflow-visible">
-
-        {/* Header */}
+        
+        {/* Header Actions */}
         <div className="bg-slate-50 p-4 flex justify-between items-center border-b shrink-0 print:hidden" dir={t.dir}>
           <div className="flex items-center gap-2 text-slate-700 font-bold">
             <Receipt size={20} className="text-emerald-600" />
@@ -425,17 +435,13 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
           </div>
 
           <div className="flex gap-2">
-
-            {/* NEW: Download PDF Button */}
             <button
               onClick={downloadPDF}
               className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
             >
               <Download size={16} />
-              <span className="hidden sm:inline">{t.downloadPDF || "Download PDF"}</span>
+              <span className="hidden sm:inline">{t.downloadPdf}</span>
             </button>
-
-            {/* Print Button */}
             <button
               onClick={handlePrint}
               className="px-4 py-2 bg-slate-800 text-white hover:bg-slate-900 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
@@ -443,8 +449,6 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
               <Printer size={16} />
               <span className="hidden sm:inline">{t.printReceipt}</span>
             </button>
-
-            {/* Close */}
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
@@ -454,57 +458,154 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
           </div>
         </div>
 
-        {/* Scrollable Preview */}
-        <div className="overflow-y-auto p-4 md:p-8 bg-slate-100/50 print:p-0 print:bg-white print:overflow-visible">
-
+        {/* Scrollable Preview Area */}
+        <div className="overflow-y-auto p-4 md:p-8 bg-slate-100/50 print:p-0 print:bg-white print:overflow-visible flex-1">
+          
+          {/* THE ACTUAL RECEIPT CONTENT - No longer blank! */}
           <div
             id="receipt-print-area"
-            className={`bg-white p-6 md:p-10 shadow-sm border border-slate-200 mx-auto max-w-lg md:max-w-full print:max-w-none print:shadow-none print:border-0 print:p-0 ${lang === 'ar' ? 'text-right' : 'text-left'} relative overflow-hidden`}
-            dir={lang === 'ar' ? 'rtl' : 'ltr'}
+            className="bg-white mx-auto shadow-sm border border-slate-200 relative overflow-hidden print:shadow-none print:border-0 print:m-0 print:w-full"
+            style={{ 
+              width: '100%', 
+              maxWidth: '800px',
+              minHeight: '500px', 
+              padding: '40px'
+            }}
+            dir={t.dir}
           >
-
-            {/* Watermark */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none print:opacity-[0.05]">
-              <img src={logoPath} className="w-64 h-64 md:w-96 md:h-96 object-contain grayscale" />
+            {/* Watermark Background */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.04]">
+               <img src={logoPath} className="w-96 h-96 object-contain grayscale" />
             </div>
 
-            {/* Full Receipt Content (unchanged) */}
-            <div className="relative z-10 h-full flex flex-col justify-between">
+            {/* Receipt Border */}
+            <div className="relative z-10 h-full border-4 border-double border-emerald-100 p-6 flex flex-col justify-between" style={{ minHeight: '600px' }}>
+              
+              {/* Receipt Header */}
+              <div className="flex justify-between items-center border-b-2 border-emerald-500 pb-6 mb-8">
+                <div className="flex items-center gap-4">
+                  <img src={logoPath} className="w-20 h-20 object-contain" alt="Logo" />
+                  <div>
+                    <h1 className="text-xl font-black text-slate-800 uppercase tracking-wide">{t.receiptAssocName}</h1>
+                    <p className="text-emerald-600 text-sm font-medium">{t.subTitle}</p>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="bg-emerald-50 text-emerald-800 px-4 py-2 rounded-lg border border-emerald-100">
+                    <p className="text-xs font-bold uppercase tracking-widest mb-1">{t.opNumber}</p>
+                    <p className="text-2xl font-mono font-black">#{String(donation.operationNumber).padStart(4, '0')}</p>
+                  </div>
+                </div>
+              </div>
 
-              {/* ---- Rest of your entire receipt stays EXACTLY as-is ---- */}
-              {/* ✔ Header */}
-              {/* ✔ Date & Title */}
-              {/* ✔ Data Table */}
-              {/* ✔ Signature */}
-              {/* ✔ Footer */}
-              {/* (All unchanged from your version) */}
+              {/* Receipt Title */}
+              <div className="text-center mb-10">
+                <h2 className="text-3xl font-black text-slate-800 inline-block border-b-4 border-emerald-200 pb-1 px-8">
+                  {t.receiptTitle}
+                </h2>
+              </div>
 
-              {/* ----------------------------------
-                  I did not modify your design at all.
-                 ---------------------------------- */}
+              {/* Receipt Body */}
+              <div className="space-y-6 flex-1 text-lg">
+                
+                {/* Row 1: Date */}
+                <div className="flex justify-end mb-8">
+                   <p className="text-slate-500 font-medium">
+                     {t.receiptDate}: <span className="font-bold text-slate-900 border-b border-dashed border-slate-300 px-2">{formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}</span>
+                   </p>
+                </div>
+
+                {/* Row 2: Donor Name */}
+                <div className="flex items-baseline gap-4">
+                  <span className="font-bold text-slate-500 min-w-[120px]">{t.receiptName}:</span>
+                  <span className="flex-1 font-bold text-2xl text-slate-800 border-b border-slate-300 pb-1 px-2">
+                    {donation.donorName || t.guest}
+                  </span>
+                </div>
+
+                {/* Row 3: Amount */}
+                <div className="flex items-baseline gap-4">
+                  <span className="font-bold text-slate-500 min-w-[120px]">{t.receiptAmount}:</span>
+                  <div className="flex-1 flex items-baseline gap-4 border-b border-slate-300 pb-1 px-2">
+                    <span className="font-black text-3xl text-emerald-700 dir-ltr">
+                      {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(donation.amount)}
+                    </span>
+                    <span className="text-sm font-bold text-slate-400 uppercase">{t.currency}</span>
+                  </div>
+                </div>
+
+                {/* Row 4: Method */}
+                <div className="flex items-baseline gap-4">
+                  <span className="font-bold text-slate-500 min-w-[120px]">{t.receiptMethod}:</span>
+                  <span className="flex-1 font-medium text-slate-800 border-b border-slate-300 pb-1 px-2">
+                     {t.methods[donation.paymentMethod?.toLowerCase().replace(/\s/g, '')] || donation.paymentMethod}
+                     {donation.bankDetails && <span className="text-slate-500 text-sm mx-2">({donation.bankDetails})</span>}
+                  </span>
+                </div>
+
+                {/* Row 5: Description (if any) */}
+                {donation.description && (
+                  <div className="flex items-baseline gap-4 mt-4">
+                    <span className="font-bold text-slate-500 min-w-[120px]">{t.description}:</span>
+                    <span className="flex-1 text-slate-700 text-sm italic border-b border-dashed border-slate-200 pb-1 px-2">
+                      {donation.description}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Receipt Footer & Signature */}
+              <div className="mt-12 pt-8 border-t border-slate-100 flex justify-between items-end">
+                <div className="text-center md:text-start max-w-[200px]">
+                  <p className="text-xs text-slate-400 leading-relaxed italic">
+                    {t.receiptFooter}
+                  </p>
+                  <p className="text-[10px] text-slate-300 mt-2 uppercase tracking-wider">
+                    {t.receivedBy}: {donation.memberName}
+                  </p>
+                </div>
+
+                <div className="text-center relative">
+                  <p className="font-bold text-slate-800 mb-4">{t.receiptSignature}</p>
+                  <div className="h-24 w-40 border-b border-dashed border-slate-300 flex items-center justify-center relative">
+                     {/* SIGNATURE IMAGE ADDED HERE */}
+                     <img 
+                       src={signatureUrl} 
+                       alt="Signature" 
+                       className="absolute bottom-0 left-1/2 -translate-x-1/2 max-h-28 object-contain pointer-events-none mix-blend-multiply"
+                     />
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
+
         </div>
       </div>
 
-      {/* Print CSS */}
       <style>{`
         @media print {
-          @page { size: auto; margin: 0mm; } 
-          body { background: white; margin: 0; padding: 0; }
-          body * { visibility: hidden; height: 0; overflow: hidden; }
-          #receipt-print-area, #receipt-print-area * { visibility: visible; height: auto; overflow: visible; }
+          @page { size: A4; margin: 0; }
+          body { background: white; -webkit-print-color-adjust: exact; }
+          body * { visibility: hidden; }
+          #receipt-print-area, #receipt-print-area * { visibility: visible; }
           #receipt-print-area {
-            position: fixed; left: 0; top: 0; width: 100%; height: 100%;
-            margin: 0; padding: 40px !important; background: white; z-index: 9999;
-            border: 2px solid #000 !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 40px !important;
+            border: none !important;
+            box-shadow: none !important;
           }
         }
       `}</style>
     </div>
   );
 };
-
 
 const ConfirmationModal = ({ data, onConfirm, onCancel, t }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in" dir={t.dir}>
@@ -692,6 +793,59 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
     setOpenMenu(openMenu === id ? null : id);
   };
 
+  // --- NEW: Export Function ---
+  const handleExportCSV = () => {
+    // BOM for Excel to read UTF-8 correctly
+    const BOM = "\uFEFF";
+    
+    // Headers matching the table columns
+    const headers = [
+      t.opNumber, 
+      t.dateFixed, 
+      t.donorName, 
+      t.amount, 
+      t.method, 
+      t.bankDetails,
+      t.memberResponsable
+    ];
+
+    const csvRows = [];
+    csvRows.push(headers.join(","));
+
+    filteredDonations.forEach(d => {
+      // Escape quotes and commas for CSV format
+      const escape = (val) => {
+        if (!val) return "";
+        const str = String(val);
+        if (str.includes(",") || str.includes('"')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const row = [
+        d.operationNumber,
+        formatDate(d.date) + ' ' + formatTime(d.date),
+        escape(d.donorName || t.guest),
+        d.amount,
+        escape(d.paymentMethod),
+        escape(d.bankDetails || "-"),
+        escape(d.memberName)
+      ];
+      csvRows.push(row.join(","));
+    });
+
+    const csvString = BOM + csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `donations_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-full pb-24" dir={t.dir}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -703,15 +857,28 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
           <p className="text-slate-400 text-sm mt-1">{filteredDonations.length} {t.totalOps}</p>
         </div>
         
-        <div className="relative w-full md:w-96">
-           <Search className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-slate-400`} size={18} />
-           <input 
-             type="text" 
-             placeholder={t.searchPlaceholder}
-             className={`w-full ${t.dir === 'rtl' ? 'pr-11 pl-4' : 'pl-11 pr-4'} py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition`}
-             value={searchTerm}
-             onChange={(e) => setSearchTerm(e.target.value)}
-           />
+        <div className="flex gap-2 w-full md:w-auto">
+          {/* SEARCH BAR */}
+          <div className="relative flex-1 md:w-80">
+            <Search className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-slate-400`} size={18} />
+            <input 
+              type="text" 
+              placeholder={t.searchPlaceholder}
+              className={`w-full ${t.dir === 'rtl' ? 'pr-11 pl-4' : 'pl-11 pr-4'} py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          {/* EXPORT BUTTON */}
+          <button 
+            onClick={handleExportCSV}
+            title={t.exportSheet}
+            className="px-4 py-3 bg-white border border-slate-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200 rounded-xl shadow-sm transition flex items-center gap-2 font-bold"
+          >
+            <FileSpreadsheet size={20} />
+            <span className="hidden sm:inline">{t.exportSheet?.split(' ')[0] || "Export"}</span>
+          </button>
         </div>
       </div>
       
@@ -1006,20 +1173,18 @@ export default function App() {
   const [memberData, setMemberData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  // NEW: State to hold current user info to extract email
   const [currentUser, setCurrentUser] = useState(null);
 
-  // --- LOGIN FORM STATE (email/password) ---
+  // --- LOGIN FORM STATE ---
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false); // <--- Added Remember Me State
+  const [rememberMe, setRememberMe] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleSignIn = async () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      // <--- Modified Sign In Logic to support persistence --->
       const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
       await setPersistence(auth, persistenceType);
 
@@ -1034,7 +1199,6 @@ export default function App() {
     }
   };
   
-  // Sidebar Language Dropdown State
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
 
   // Receipt State
@@ -1052,10 +1216,6 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        // <--- REMOVED FORCED SESSION PERSISTENCE HERE --->
-        // Previously: await setPersistence(auth, browserSessionPersistence);
-        // We let firebase manage persistence state or set it on login.
-
         const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         if (token) {
           await signInWithCustomToken(auth, token);
@@ -1072,7 +1232,7 @@ export default function App() {
     
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUserId(user ? user.uid : null);
-      setCurrentUser(user); // Capture the full user object
+      setCurrentUser(user);
       setAuthReady(true);
       if(!user) {
         setLoading(false);
@@ -1093,7 +1253,7 @@ export default function App() {
            setMemberData(snap.data());
            setIsAdmin(snap.data().isAdmin || false);
          } else {
-            setMemberData(null); // Reset to null if not found so we check email
+            setMemberData(null);
          }
          setLoading(false);
        });
@@ -1112,10 +1272,6 @@ export default function App() {
     }
   }, [authReady, userId]);
 
-  // LOGIC TO DETERMINE DISPLAY NAME
-  // 1. Try memberData.name (from Firestore)
-  // 2. Try slicing the email before '@' (from Auth)
-  // 3. Fallback to "Guest"
   const displayMemberName = useMemo(() => {
     if (memberData && memberData.name) return memberData.name;
     if (currentUser && currentUser.email) return currentUser.email.split('@')[0];
@@ -1165,8 +1321,11 @@ export default function App() {
       setReceiptData(data);
     }
     if (type === 'print' || type === 'download') {
-      setAutoPrint(true);
+      setAutoPrint(type === 'print');
       setReceiptData(data);
+      if(type === 'download') {
+         // The modal itself handles the download button now
+      }
     }
   };
 
@@ -1203,7 +1362,6 @@ export default function App() {
                 className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:ring-2 focus:ring-emerald-500 outline-none"
               />
 
-              {/* <--- ADDED REMEMBER ME CHECKBOX HERE ---> */}
               <div className="flex items-center gap-3 px-2">
                  <input 
                    type="checkbox" 
