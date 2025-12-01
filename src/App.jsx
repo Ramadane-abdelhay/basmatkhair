@@ -463,122 +463,117 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
         {/* Scrollable Preview */}
         <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
 
-          {/* ✅ SCALE WRAPPER (NEW) */}
-          <div className="receipt-scale-wrapper">
+          {/* NOTE: outer #receipt-print-area stays unscaled; only its first inner div gets scaled on mobile */}
+          <div
+            id="receipt-print-area"
+            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm]"
+            style={{ padding: '30px' }}
+            dir="rtl"
+          >
+            {/* <-- FIRST INNER DIV (we'll scale this on mobile) */}
+            <div className="receipt-inner-scale border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
 
-            {/* RECEIPT */}
-            <div
-              id="receipt-print-area"
-              className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm]"
-              style={{ padding: '30px' }}
-              dir="rtl"
-            >
-              {/* BORDER */}
-              <div className="border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
+              {/* Watermark */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
+                <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
+              </div>
 
-                {/* Watermark */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
-                  <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
+              {/* Header */}
+              <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
+                <div className="flex justify-center mb-4">
+                  <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
                 </div>
-
-                {/* Header */}
-                <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
-                  <div className="flex justify-center mb-4">
-                    <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
-                  </div>
-                  <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
-                  <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
-                  <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
-                    رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
-                  </div>
+                <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
+                <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
+                <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
+                  رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
                 </div>
+              </div>
 
-                {/* Content */}
-                <div className="flex-1 space-y-8 text-xl px-2">
+              {/* Content */}
+              <div className="flex-1 space-y-8 text-xl px-2">
 
-                  <div className="flex items-baseline w-full">
-                    <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptName} :</span>
-                    <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
-                      {donation.donorName || t.guest}
-                    </div>
-                  </div>
-
-                  <div className="flex items-baseline w-full">
-                    <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptAmount} :</span>
-                    <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900">
-                      {formatMoney(donation.amount)} <span className="text-sm text-slate-500">({t.currency})</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-baseline w-full">
-                    <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptDate} :</span>
-                    <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
-                      {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Footer */}
-                <div className="mt-16 pt-8 flex justify-between items-start">
-                  <div className="text-center w-1/2">
-                    <p className="font-bold text-slate-700 mb-2 underline">{t.receivedBy}</p>
-                    <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
-                  </div>
-
-                  <div className="text-center w-1/2">
-                    <p className="font-bold text-slate-700 mb-4 underline">{t.receiptSignature}</p>
-                    <div className="h-20 flex items-center justify-center">
-                      <img 
-                        src={signatureUrl}
-                        className="max-h-24 object-contain mix-blend-multiply -rotate-6"
-                      />
-                    </div>
+                <div className="flex items-baseline w-full">
+                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptName} :</span>
+                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
+                    {donation.donorName || t.guest}
                   </div>
                 </div>
 
-                <div className="mt-8 pt-4 border-t text-center">
-                  <p className="text-[10px] text-slate-400">
-                    {t.receiptFooter} | {t.appTitle}
-                  </p>
+                <div className="flex items-baseline w-full">
+                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptAmount} :</span>
+                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900">
+                    {formatMoney(donation.amount)} <span className="text-sm text-slate-500">({t.currency})</span>
+                  </div>
+                </div>
+
+                <div className="flex items-baseline w-full">
+                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptDate} :</span>
+                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
+                    {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
+                  </div>
                 </div>
 
               </div>
-            </div>  
-          </div>
+
+              {/* Footer */}
+              <div className="mt-16 pt-8 flex justify-between items-start">
+                <div className="text-center w-1/2">
+                  <p className="font-bold text-slate-700 mb-2 underline">{t.receivedBy}</p>
+                  <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
+                </div>
+
+                <div className="text-center w-1/2">
+                  <p className="font-bold text-slate-700 mb-4 underline">{t.receiptSignature}</p>
+                  <div className="h-20 flex items-center justify-center">
+                    <img 
+                      src={signatureUrl}
+                      className="max-h-24 object-contain mix-blend-multiply -rotate-6"
+                      alt="Signature"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t text-center">
+                <p className="text-[10px] text-slate-400">
+                  {t.receiptFooter} | {t.appTitle}
+                </p>
+              </div>
+
+            </div> {/* /.receipt-inner-scale */}
+          </div> {/* /#receipt-print-area */}
+
         </div>
       </div>
 
       {/* Styles */}
       <style>{`
-        /* ✅ MOBILE SCALE FIX */
-        .receipt-scale-wrapper {
-          width: 100%;
-          display: flex;
-          justify-content: center;
-        }
-
-        #receipt-print-area {
+        /* The outer print area remains unscaled so print/A5 sizing and html2canvas capture are stable. */
+        .receipt-inner-scale {
           transform: scale(1);
           transform-origin: top center;
+          width: 100%;
         }
 
+        /* Scale only the first inner div on small screens (mobile preview) */
         @media (max-width: 480px) {
-          #receipt-print-area {
+          .receipt-inner-scale {
             transform: scale(0.78);
-            width: 128% !important;
+            width: 128%; /* compensate for scaling so layout width looks the same */
           }
         }
 
+        /* Print: ensure the printed/exported output is unaffected by preview scaling */
         @media print {
           @page { size: A5; margin: 0; }
-          #receipt-print-area {
+          .receipt-inner-scale {
             transform: scale(1) !important;
             width: 100% !important;
-            max-width: 100% !important;
-            height: 100% !important;
-            padding: 10mm !important;
             box-shadow: none !important;
+          }
+          #receipt-print-area {
+            padding: 10mm !important;
           }
         }
       `}</style>
@@ -586,6 +581,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
     </div>
   );
 };
+
 
 
 // --- 5. MAIN VIEWS ---
