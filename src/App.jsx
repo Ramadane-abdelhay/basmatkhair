@@ -392,28 +392,87 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
 };
 
 
-const ReceiptModal = ({
-  donation,
-  onClose,
-  logoPath,
-  autoPrint = false,
-  t = {},
-  lang = "fr",
+const ReceiptModal = ({ 
+  donation, 
+  onClose, 
+  logoPath, 
+  autoPrint = false, 
+  t = {}, 
+  lang = "fr" 
 }) => {
-  const signatureUrl =
-    "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
-
+  const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
+  
   const printAreaRef = useRef(null);
-  const hiddenRef = useRef(null);
+  const containerRef = useRef(null);
+  const [scale, setScale] = useState(1);
+  const [isGenerating, setIsGenerating] = useState(false);
 
+  // 1. Dynamic Scaling Logic
+  // This calculates how much to shrink the A4 paper to fit the user's screen
+  useEffect(() => {
+    const handleResize = () => {
+      if (containerRef.current) {
+        const parentWidth = containerRef.current.offsetWidth;
+        // 210mm in pixels at 96 DPI is approx 794px. 
+        // We add some padding (40px) to ensure it doesn't touch edges.
+        const a4WidthPx = 794; 
+        const newScale = Math.min(1, (parentWidth - 32) / a4WidthPx); // 32px padding
+        setScale(newScale);
+      }
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // 2. Auto Print Logic
   useEffect(() => {
     if (autoPrint) {
-      const timer = setTimeout(() => window.print(), 600);
+      // Small delay to ensure images/fonts load
+      const timer = setTimeout(() => window.print(), 800);
       return () => clearTimeout(timer);
     }
   }, [autoPrint]);
 
   if (!donation) return null;
+
+  // 3. Native Browser Print
+  const handlePrint = () => window.print();
+
+  // 4. High Quality PDF Download
+  const downloadPDF = async () => {
+    const element = printAreaRef.current;
+    if (!element) return;
+    
+    setIsGenerating(true);
+
+    try {
+      // We explicitly set the scale for html2canvas to ensure high resolution
+      // regardless of the current visual scale on the screen.
+      const canvas = await html2canvas(element, {
+        scale: 2, // 2x scale for retina-like sharpness
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        windowWidth: 794, // Force A4 width in px
+        windowHeight: 1123, // Force A4 height in px
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`);
+    } catch (err) {
+      console.error("PDF Generation failed", err);
+      alert("Error generating PDF. Please use the Print button.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const formatMoney = (v) => {
     try {
@@ -421,124 +480,212 @@ const ReceiptModal = ({
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }).format(Number(v));
-    } catch (e) {
-      return v;
-    }
+    } catch (e) { return v; }
   };
 
   const formatDate = (d) => {
     try {
-      const date = new Date(d);
-      return date.toLocaleDateString(lang === "ar" ? "ar-MA" : "fr-FR", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
+      return new Date(d).toLocaleDateString(lang === "ar" ? "ar-MA" : "fr-FR", {
+        year: "numeric", month: "long", day: "numeric",
       });
-    } catch (e) {
-      return d;
-    }
-  };
-
-  const handlePrint = () => window.print();
-
-  const downloadPDF = async () => {
-    if (!hiddenRef.current) return;
-
-    try {
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidthMM = pdf.internal.pageSize.getWidth();
-      const pdfHeightMM = pdf.internal.pageSize.getHeight();
-
-      // Capture the hidden full-size receipt
-      const mmToPx = 3.78; // 1mm ≈ 3.78px
-      const canvas = await html2canvas(hiddenRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#fff",
-        width: 210 * mmToPx,
-        height: 297 * mmToPx,
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL("image/png", 1.0);
-      const pxPerMM = canvas.width / pdfWidthMM;
-      const imgHeightMM = canvas.height / pxPerMM;
-
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidthMM, imgHeightMM);
-      pdf.save(
-        `Receipt_${String(donation.operationNumber || "0000").padStart(
-          4,
-          "0"
-        )}.pdf`
-      );
-    } catch (err) {
-      console.error("PDF Generation failed", err);
-      alert("Error generating PDF. Try printing to PDF from your browser.");
-    }
+    } catch (e) { return d; }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
-
-      {/* Main modal for preview */}
-      <div className="bg-white w-full max-w-4xl rounded-lg shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
-
-        {/* Header */}
-        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t?.dir || "rtl"}>
-          <div className="flex items-center gap-2 text-white font-bold">
-            <span>{t.viewReceipt || "View receipt"}</span>
+    <div className="fixed inset-0 z-[100] flex flex-col bg-slate-900/95 backdrop-blur-sm print:bg-white print:p-0 print:static print:block">
+      
+      {/* --- Toolbar --- */}
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 shadow-lg shrink-0 print:hidden" dir={t?.dir || "rtl"}>
+        <div className="flex items-center gap-3 text-white">
+          <div className="p-2 bg-slate-700 rounded-lg">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="text-emerald-400">
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
-          <div className="flex gap-2">
-            <button onClick={downloadPDF} className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold">
-              {t.downloadPdf || "Download PDF"}
-            </button>
-            <button onClick={handlePrint} className="px-4 py-2 bg-white text-slate-900 rounded-lg font-bold">
-              {t.printReceipt || "Print"}
-            </button>
-            <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition">
-              ✕
-            </button>
+          <div>
+            <h3 className="font-bold text-sm sm:text-base leading-tight">{t.viewReceipt || "Payment Receipt"}</h3>
+            <p className="text-xs text-slate-400">#{String(donation.operationNumber).padStart(4, "0")}</p>
           </div>
         </div>
 
-        {/* Preview area */}
-        <div className="overflow-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={downloadPDF} 
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white transition-all rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          >
+            {isGenerating ? (
+              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5-5 5 5M12 15V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+            <span className="hidden sm:inline">{t.downloadPdf || "Download"}</span>
+          </button>
+
+          <button 
+            onClick={handlePrint} 
+            className="p-2 text-slate-300 transition-colors rounded-lg hover:bg-slate-700 hover:text-white"
+            title={t.printReceipt || "Print"}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M6 14h12v8H6z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+
+          <div className="h-6 w-px bg-slate-600 mx-1"></div>
+
+          <button 
+            onClick={onClose} 
+            className="p-2 text-slate-400 transition-colors rounded-lg hover:bg-red-500/10 hover:text-red-400"
+          >
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* --- Viewport Area --- */}
+      <div 
+        ref={containerRef}
+        className="flex-1 overflow-auto bg-slate-900/50 p-4 md:p-8 flex justify-center items-start print:p-0 print:bg-white print:block print:overflow-visible"
+        onClick={(e) => e.target === containerRef.current && onClose()}
+      >
+        {/* Wrapper for Scaling: This div shrinks visually but keeps children large */}
+        <div 
+          className="relative transition-transform duration-200 ease-out origin-top print:transform-none print:w-full"
+          style={{ 
+            transform: `scale(${scale})`,
+            marginBottom: `${(297 * scale)}mm` // Prevent bottom cut-off when scrolling
+          }}
+        >
+          {/* ACTUAL A4 DOCUMENT 
+            Width: 210mm, Height: 297mm 
+          */}
           <div
             ref={printAreaRef}
+            id="receipt-print-area"
+            className="bg-white shadow-2xl print:shadow-none"
             style={{
               width: "210mm",
-              height: "297mm",
-              background: "#fff",
-              boxShadow: "0 6px 30px rgba(2,6,23,0.25)",
-              transformOrigin: "top center",
+              minHeight: "297mm", // minHeight allows content to push if needed, but A4 is usually fixed
+              position: "relative",
+              direction: "rtl",
             }}
-            className="relative scale-[0.9] sm:scale-[0.8] xs:scale-[0.7] md:scale-100"
           >
-            {/* Copy your receipt content here exactly like original */}
-            {/* ... Header, main content, footer ... */}
+            <div className="w-full h-full p-[16mm] flex flex-col justify-between relative overflow-hidden box-border">
+              
+              {/* Watermark */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none z-0">
+                <img src={logoPath} className="w-[140mm] object-contain grayscale" alt="" />
+              </div>
+
+              {/* === RECEIPT CONTENT === */}
+              <div className="relative z-10 flex flex-col h-full justify-between">
+                
+                {/* Header */}
+                <header className="text-center border-b-2 border-slate-900 pb-8">
+                  <div className="flex justify-center mb-6">
+                    <img src={logoPath} className="h-[28mm] object-contain" alt="Logo" />
+                  </div>
+                  <h1 className="text-2xl font-extrabold text-slate-900 mb-1">{t.appTitle}</h1>
+                  <p className="text-base font-medium text-slate-600">{t.subTitle}</p>
+                  
+                  <div className="mt-6 inline-block bg-slate-900 text-white px-6 py-1.5 rounded-full font-mono text-lg font-bold tracking-widest shadow-sm">
+                    {String(donation.operationNumber).padStart(4, "0")} :رقم الوصل
+                  </div>
+                </header>
+
+                {/* Body */}
+                <main className="flex-1 py-12 flex flex-col gap-10">
+                  
+                  {/* Row 1: Name */}
+                  <div className="flex items-end gap-6">
+                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right">
+                      : {t.receiptName}
+                    </div>
+                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-1 text-xl font-semibold text-slate-800">
+                      {donation.donorName || t.guest}
+                    </div>
+                  </div>
+
+                  {/* Row 2: Amount */}
+                  <div className="flex items-end gap-6">
+                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right">
+                      : {t.receiptAmount}
+                    </div>
+                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-1 text-3xl font-black text-slate-900">
+                      {formatMoney(donation.amount)} 
+                      <span className="text-lg text-slate-500 font-bold mr-2">({t.currency})</span>
+                    </div>
+                  </div>
+
+                  {/* Row 3: Date */}
+                  <div className="flex items-end gap-6">
+                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right">
+                      : {t.receiptDate}
+                    </div>
+                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-1 text-xl font-semibold text-slate-800">
+                      {formatDate(donation.date)}
+                    </div>
+                  </div>
+
+                </main>
+
+                {/* Footer */}
+                <footer className="mt-auto">
+                  <div className="flex justify-between items-start mb-12">
+                    {/* Received By */}
+                    <div className="text-center w-5/12">
+                      <p className="font-bold text-slate-900 underline decoration-2 underline-offset-4 mb-3">
+                        {t.receivedBy}
+                      </p>
+                      <p className="text-lg text-slate-700 font-medium">
+                        {donation.memberName}
+                      </p>
+                    </div>
+
+                    {/* Signature */}
+                    <div className="text-center w-5/12">
+                      <p className="font-bold text-slate-900 underline decoration-2 underline-offset-4 mb-3">
+                        {t.receiptSignature}
+                      </p>
+                      <div className="h-[35mm] flex items-center justify-center">
+                        <img 
+                          src={signatureUrl} 
+                          className="max-h-full object-contain -rotate-6 opacity-90 mix-blend-multiply" 
+                          alt="Signature"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Strip */}
+                  <div className="border-t border-slate-200 pt-4 text-center">
+                    <p className="text-sm text-slate-400 font-medium">
+                      {t.appTitle} | {t.receiptFooter}
+                    </p>
+                  </div>
+                </footer>
+
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Hidden full-size receipt for PDF export */}
-      <div
-        ref={hiddenRef}
-        style={{
-          position: "fixed",
-          top: "-10000px",
-          left: "-10000px",
-          width: "210mm",
-          height: "297mm",
-          background: "#fff",
-        }}
-      >
-        {/* Copy the same receipt content exactly as in preview */}
-      </div>
-
+      {/* Print Styles */}
       <style>{`
         @media print {
-          body, html { margin: 0 !important; padding: 0 !important; }
-          @page { size: A4 portrait; margin: 0; }
+          @page { size: A4; margin: 0; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          #receipt-print-area { width: 210mm !important; height: 297mm !important; box-shadow: none !important; }
         }
       `}</style>
     </div>
