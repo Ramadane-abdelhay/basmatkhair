@@ -595,8 +595,6 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t = {}, 
   );
 };
 
-export default ReceiptModal;
-
 
 
 
