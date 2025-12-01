@@ -391,196 +391,248 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
   );
 };
 
-const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang }) => {
-  
-  const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
 
-  useEffect(() => {
-    if (autoPrint) {
-      const timer = setTimeout(() => window.print(), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [autoPrint]);
+export default function ReceiptModal({ donation, onClose, logoPath, autoPrint = false, t = {}, lang = 'fr' }) {
+  const signatureUrl = 'https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png';
+  const printAreaRef = useRef(null);
 
-  const handlePrint = () => window.print();
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => window.print(), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
-  const downloadPDF = async () => {
-    const element = document.getElementById("receipt-print-area");
-    if (!element) return;
+  if (!donation) return null;
 
-    try {
-      const canvas = await html2canvas(element, {
-        scale: 2.5,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false
-      });
+  const handlePrint = () => window.print();
 
-      const imgData = canvas.toDataURL("image/jpeg", 1.0);
-      const pdf = new jsPDF("p", "mm", "a5");
-      
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, imgHeight);
-      pdf.save(`Receipt_${donation.operationNumber}.pdf`);
-    } catch (err) {
-      console.error("PDF Generation failed", err);
-      alert("Error generating PDF. Please try printing to PDF.");
-    }
-  };
+  const downloadPDF = async () => {
+    const element = printAreaRef.current;
+    if (!element) return;
 
-  if (!donation) return null;
+    try {
+      // Use mm for jsPDF. A4 portrait = 210 x 297 mm
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidthMM = pdf.internal.pageSize.getWidth(); // 210
+      const pdfHeightMM = pdf.internal.pageSize.getHeight(); // 297
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
-      
-      <div className="bg-white w-full max-w-xl rounded-none md:rounded-2xl shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
-        
-        {/* Header */}
-        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t.dir}>
-          <div className="flex items-center gap-2 text-white font-bold">
-            <Receipt size={20} className="text-emerald-400" />
-            <span>{t.viewReceipt}</span>
-          </div>
+      // html2canvas will render the element at the size set in CSS (we set width/height in mm).
+      // For higher quality, increase scale relative to devicePixelRatio.
+      const scale = Math.min(2, window.devicePixelRatio || 1) * 2;
 
-          <div className="flex gap-2">
-            <button onClick={downloadPDF} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
-              <Download size={16} />
-              <span className="hidden sm:inline">{t.downloadPdf}</span>
-            </button>
-            <button onClick={handlePrint} className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
-              <Printer size={16} />
-              <span className="hidden sm:inline">{t.printReceipt}</span>
-            </button>
-            <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition">
-              <X size={24} />
-            </button>
-          </div>
-        </div>
+      const canvas = await html2canvas(element, {
+        scale,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        // allowTaint: false,
+      });
 
-        {/* Scrollable Preview */}
-        <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
+      const imgData = canvas.toDataURL('image/png', 1.0);
 
-          {/* NOTE: outer #receipt-print-area stays unscaled; only its first inner div gets scaled on mobile */}
-          <div
-            id="receipt-print-area"
-            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm]"
-            style={{ padding: '30px' }}
-            dir="rtl"
-          >
-            {/* <-- FIRST INNER DIV (we'll scale this on mobile) */}
-            <div className="receipt-inner-scale border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
+      // Calculate image size in mm to fit exactly A4 width
+      const imgProps = { width: canvas.width, height: canvas.height };
+      const pxPerMM = canvas.width / pdfWidthMM; // pixels per mm based on rendered canvas
+      const imgHeightMM = imgProps.height / pxPerMM;
 
-              {/* Watermark */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
-                <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
-              </div>
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidthMM, imgHeightMM);
+      pdf.save(`Receipt_${String(donation.operationNumber || '0000').padStart(4, '0')}.pdf`);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('PDF Generation failed', err);
+      // eslint-disable-next-line no-alert
+      alert('Error generating PDF. Try printing to PDF from your browser.');
+    }
+  };
 
-              {/* Header */}
-              <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
-                <div className="flex justify-center mb-4">
-                  <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
-                </div>
-                <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
-                <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
-                <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
-                  رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
-                </div>
-              </div>
+  // Simple helpers (replace with your own functions if present)
+  const formatMoney = (v) => {
+    try {
+      return new Intl.NumberFormat(lang === 'ar' ? 'ar-MA' : 'fr-FR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(Number(v));
+    } catch (e) {
+      return v;
+    }
+  };
 
-              {/* Content */}
-              <div className="flex-1 space-y-8 text-xl px-2">
+  const formatDate = (d) => {
+    try {
+      const date = new Date(d);
+      return date.toLocaleDateString(lang === 'ar' ? 'ar-MA' : 'fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch (e) {
+      return d;
+    }
+  };
 
-                <div className="flex items-baseline w-full">
-                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptName} :</span>
-                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
-                    {donation.donorName || t.guest}
-                  </div>
-                </div>
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
 
-                <div className="flex items-baseline w-full">
-                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptAmount} :</span>
-                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900">
-                    {formatMoney(donation.amount)} <span className="text-sm text-slate-500">({t.currency})</span>
-                  </div>
-                </div>
+      <div className="bg-white w-full max-w-4xl rounded-lg shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
 
-                <div className="flex items-baseline w-full">
-                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptDate} :</span>
-                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
-                    {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
-                  </div>
-                </div>
+        {/* Header (hidden on print) */}
+        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t?.dir || 'rtl'}>
+          <div className="flex items-center gap-2 text-white font-bold">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 8V21H3V5a2 2 0 012-2h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <span>{t.viewReceipt || 'View receipt'}</span>
+          </div>
 
-              </div>
+          <div className="flex gap-2">
+            <button onClick={downloadPDF} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M7 10l5-5 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M12 5v12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <span className="hidden sm:inline">{t.downloadPdf || 'Download PDF'}</span>
+            </button>
+            <button onClick={handlePrint} className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><rect x="3" y="13" width="18" height="8" rx="2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <span className="hidden sm:inline">{t.printReceipt || 'Print'}</span>
+            </button>
+            <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
 
-              {/* Footer */}
-              <div className="mt-16 pt-8 flex justify-between items-start">
-                <div className="text-center w-1/2">
-                  <p className="font-bold text-slate-700 mb-2 underline">{t.receivedBy}</p>
-                  <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
-                </div>
+        {/* Preview area */}
+        <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
 
-                <div className="text-center w-1/2">
-                  <p className="font-bold text-slate-700 mb-4 underline">{t.receiptSignature}</p>
-                  <div className="h-20 flex items-center justify-center">
-                    <img 
-                      src={signatureUrl}
-                      className="max-h-24 object-contain mix-blend-multiply -rotate-6"
-                      alt="Signature"
-                    />
-                  </div>
-                </div>
-              </div>
+          {/* A4 fixed-size frame. We make this EXACTLY A4 using mm units so html2canvas captures exactly the same physical size. */}
+          <div
+            ref={printAreaRef}
+            id="receipt-print-area"
+            className="relative"
+            style={{
+              width: '210mm',
+              height: '297mm',
+              boxShadow: '0 6px 30px rgba(2,6,23,0.25)',
+              background: '#fff',
+            }}
+          >
+            {/* The content is centered inside the A4 with inner padding in mm. We use a single static layout that will be scaled down on small devices */}
 
-              <div className="mt-8 pt-4 border-t text-center">
-                <p className="text-[10px] text-slate-400">
-                  {t.receiptFooter} | {t.appTitle}
-                </p>
-              </div>
+            <div className="receipt-content" style={{ width: '100%', height: '100%', padding: '16mm', boxSizing: 'border-box', position: 'relative', direction: 'rtl' }}>
 
-            </div> {/* /.receipt-inner-scale */}
-          </div> {/* /#receipt-print-area */}
+              {/* Watermark (low opacity, centered) */}
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                <img src={logoPath} alt="watermark" style={{ width: '130mm', height: 'auto', opacity: 0.06, objectFit: 'contain', filter: 'grayscale(1)' }} />
+              </div>
 
-        </div>
-      </div>
+              {/* Real content (stacked) */}
+              <div style={{ position: 'relative', zIndex: 2, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
 
-      {/* Styles */}
-      <style>{`
-        /* The outer print area remains unscaled so print/A5 sizing and html2canvas capture are stable. */
-        .receipt-inner-scale {
-          transform: scale(1);
-          transform-origin: top center;
-          width: 100%;
-        }
+                {/* Header */}
+                <header style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '6mm' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4mm' }}>
+                    <img src={logoPath} alt="Logo" style={{ height: '24mm', width: 'auto', objectFit: 'contain' }} />
+                  </div>
+                  <h1 style={{ fontSize: '18pt', fontWeight: 800, margin: 0, color: '#0f172a' }}>{t.appTitle || 'App Title'}</h1>
+                  <p style={{ margin: '4px 0 8px', fontSize: '10pt', fontWeight: 700, color: '#475569' }}>{t.subTitle || 'Subtitle'}</p>
 
-        /* Scale only the first inner div on small screens (mobile preview) */
-        @media (max-width: 480px) {
-          .receipt-inner-scale {
-            transform: scale(0.78);
-            width: 128%; /* compensate for scaling so layout width looks the same */
-          }
-        }
+                  <div style={{ display: 'inline-block', marginTop: '6mm', padding: '6px 12px', background: '#0f172a', color: '#fff', fontFamily: 'monospace', fontWeight: 800, fontSize: '12pt', borderRadius: '9999px' }}>
+                    رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
+                  </div>
+                </header>
 
-        /* Print: ensure the printed/exported output is unaffected by preview scaling */
-        @media print {
-          @page { size: A5; margin: 0; }
-          .receipt-inner-scale {
-            transform: scale(1) !important;
-            width: 100% !important;
-            box-shadow: none !important;
-          }
-          #receipt-print-area {
-            padding: 10mm !important;
-          }
-        }
-      `}</style>
+                {/* Middle content */}
+                <main style={{ padding: '6mm 4mm', fontSize: '14pt', display: 'flex', flexDirection: 'column', gap: '10mm' }}>
 
-    </div>
-  );
-};
+                  {/* Row helper */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8mm' }}>
+                    <div style={{ fontWeight: 800, minWidth: '40mm' }}>{t.receiptName || 'Name'} :</div>
+                    <div style={{ flex: 1, borderBottom: '2px dotted #94a3b8', textAlign: 'center', fontWeight: 700 }}>{donation.donorName || t.guest || 'Guest'}</div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8mm' }}>
+                    <div style={{ fontWeight: 800, minWidth: '40mm' }}>{t.receiptAmount || 'Amount'} :</div>
+                    <div style={{ flex: 1, borderBottom: '2px dotted #94a3b8', textAlign: 'center', fontWeight: 900, fontSize: '18pt' }}>
+                      {formatMoney(donation.amount)} <span style={{ fontSize: '10pt', color: '#64748b', fontWeight: 700 }}>({t.currency || 'MAD'})</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8mm' }}>
+                    <div style={{ fontWeight: 800, minWidth: '40mm' }}>{t.receiptDate || 'Date'} :</div>
+                    <div style={{ flex: 1, borderBottom: '2px dotted #94a3b8', textAlign: 'center', fontWeight: 700 }}>{formatDate(donation.date)}</div>
+                  </div>
+
+                </main>
+
+                {/* Footer */}
+                <footer style={{ marginTop: '6mm' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8mm' }}>
+                    <div style={{ textAlign: 'center', width: '48%' }}>
+                      <p style={{ fontWeight: 800, color: '#334155', textDecoration: 'underline', margin: 0 }}>{t.receivedBy || 'Received by'}</p>
+                      <p style={{ marginTop: '6px', fontWeight: 600, color: '#64748b', fontSize: '10pt' }}>{donation.memberName || ''}</p>
+                    </div>
+
+                    <div style={{ textAlign: 'center', width: '48%' }}>
+                      <p style={{ fontWeight: 800, color: '#334155', textDecoration: 'underline', margin: '0 0 8px 0' }}>{t.receiptSignature || 'Signature'}</p>
+                      <div style={{ height: '30mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <img src={signatureUrl} alt="Signature" style={{ maxHeight: '30mm', objectFit: 'contain', transform: 'rotate(-6deg)' }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '10mm', borderTop: '1px solid #e2e8f0', paddingTop: '6px', textAlign: 'center' }}>
+                    <p style={{ fontSize: '9pt', color: '#94a3b8', margin: 0 }}>{t.receiptFooter || 'Footer text'} | {t.appTitle || 'App Title'}</p>
+                  </div>
+                </footer>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Scoped styles for scaling on small screens and print rules. */}
+      <style>{`
+        /* Ensure the A4 frame prints exactly as A4 */
+        @media print {
+          body, html {
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          @page { size: A4 portrait; margin: 0; }
+
+          /* Make the modal container transparent and full page when printing */
+          .receipt-content { box-shadow: none !important; }
+
+          /* Remove any surrounding UI when printing */
+          .fixed { position: static !important; }
+        }
+
+        /* Responsive preview: only scale the A4 frame to fit smaller viewports.
+           This preserves layout and prevents reflow. */
+        @media (max-width: 1000px) {
+          #receipt-print-area { transform-origin: top center; transform: scale(0.9); }
+        }
+
+        @media (max-width: 700px) {
+          /* scale down more on small phones */
+          #receipt-print-area { transform-origin: top center; transform: scale(0.66); }
+        }
+
+        @media (max-width: 420px) {
+          /* very small phones */
+          #receipt-print-area { transform-origin: top center; transform: scale(0.52); }
+        }
+
+        /* Prevent caret / selection highlighting inside the receipt when previewing */
+        #receipt-print-area * { -webkit-user-select: none; user-select: none; }
+      `}</style>
+
+    </div>
+  );
+}
+
+
 
 
 // --- 5. MAIN VIEWS ---
