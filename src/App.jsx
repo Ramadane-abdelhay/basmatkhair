@@ -406,17 +406,54 @@ const ReceiptModal = ({
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [libsLoaded, setLibsLoaded] = useState(false);
 
-  // 1. Dynamic Scaling Logic
-  // This calculates how much to shrink the A4 paper to fit the user's screen
+  // 1. Load PDF Libraries & Fonts Dynamically
+  useEffect(() => {
+    const loadScript = (src) => {
+      return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+          resolve();
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.body.appendChild(script);
+      });
+    };
+
+    const loadStyle = (href) => {
+      if (!document.querySelector(`link[href="${href}"]`)) {
+        const link = document.createElement('link');
+        link.href = href;
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+      }
+    };
+
+    // Load Cairo Font for professional Arabic look
+    loadStyle("https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap");
+
+    Promise.all([
+      loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+      loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
+    ]).then(() => {
+      setLibsLoaded(true);
+    }).catch(err => {
+      console.error("Failed to load PDF libraries", err);
+    });
+  }, []);
+
+  // 2. Dynamic Scaling Logic
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
         const parentWidth = containerRef.current.offsetWidth;
-        // 210mm in pixels at 96 DPI is approx 794px. 
-        // We add some padding (40px) to ensure it doesn't touch edges.
-        const a4WidthPx = 794; 
-        const newScale = Math.min(1, (parentWidth - 32) / a4WidthPx); // 32px padding
+        const a4WidthPx = 794; // 210mm @ 96 DPI
+        // Calculate scale to fit, with a max of 1.0
+        const newScale = Math.min(1, (parentWidth - 32) / a4WidthPx);
         setScale(newScale);
       }
     };
@@ -426,10 +463,9 @@ const ReceiptModal = ({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 2. Auto Print Logic
+  // 3. Auto Print Logic
   useEffect(() => {
     if (autoPrint) {
-      // Small delay to ensure images/fonts load
       const timer = setTimeout(() => window.print(), 800);
       return () => clearTimeout(timer);
     }
@@ -437,26 +473,43 @@ const ReceiptModal = ({
 
   if (!donation) return null;
 
-  // 3. Native Browser Print
   const handlePrint = () => window.print();
 
-  // 4. High Quality PDF Download
+  // 4. Robust PDF Download
   const downloadPDF = async () => {
+    if (!libsLoaded) {
+      alert("Please wait for PDF tools to load...");
+      return;
+    }
+
     const element = printAreaRef.current;
     if (!element) return;
     
     setIsGenerating(true);
 
     try {
-      // We explicitly set the scale for html2canvas to ensure high resolution
-      // regardless of the current visual scale on the screen.
+      const html2canvas = window.html2canvas;
+      const { jsPDF } = window.jspdf;
+
+      // Force high resolution and desktop-like environment
       const canvas = await html2canvas(element, {
-        scale: 2, // 2x scale for retina-like sharpness
+        scale: 2, 
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
-        windowWidth: 794, // Force A4 width in px
-        windowHeight: 1123, // Force A4 height in px
+        // Crucial: Set window dimensions to desktop size to prevent mobile layout shifts
+        windowWidth: 1200, 
+        windowHeight: 1200,
+        onclone: (clonedDoc) => {
+          const clonedElement = clonedDoc.getElementById("receipt-print-area");
+          if (clonedElement) {
+            // Reset any scaling transforms on the clone so it captures at full size
+            clonedElement.style.transform = "none";
+            clonedElement.style.margin = "0";
+            // Force fonts in the clone
+            clonedElement.style.fontFamily = "'Cairo', sans-serif";
+          }
+        }
       });
 
       const imgData = canvas.toDataURL("image/png");
@@ -468,7 +521,7 @@ const ReceiptModal = ({
       pdf.save(`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`);
     } catch (err) {
       console.error("PDF Generation failed", err);
-      alert("Error generating PDF. Please use the Print button.");
+      alert("Error generating PDF. Please use the Print button fallback.");
     } finally {
       setIsGenerating(false);
     }
@@ -492,7 +545,7 @@ const ReceiptModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-slate-900/95 backdrop-blur-sm print:bg-white print:p-0 print:static print:block">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-slate-900/95 backdrop-blur-sm print:bg-white print:p-0 print:static print:block font-['Cairo',_sans-serif]">
       
       {/* --- Toolbar --- */}
       <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 shadow-lg shrink-0 print:hidden" dir={t?.dir || "rtl"}>
@@ -503,15 +556,15 @@ const ReceiptModal = ({
             </svg>
           </div>
           <div>
-            <h3 className="font-bold text-sm sm:text-base leading-tight">{t.viewReceipt || "Payment Receipt"}</h3>
-            <p className="text-xs text-slate-400">#{String(donation.operationNumber).padStart(4, "0")}</p>
+            <h3 className="font-bold text-sm sm:text-base leading-tight font-sans">{t.viewReceipt || "Payment Receipt"}</h3>
+            <p className="text-xs text-slate-400 font-sans">#{String(donation.operationNumber).padStart(4, "0")}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button 
             onClick={downloadPDF} 
-            disabled={isGenerating}
+            disabled={isGenerating || !libsLoaded}
             className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white transition-all rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
           >
             {isGenerating ? (
@@ -524,7 +577,7 @@ const ReceiptModal = ({
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5-5 5 5M12 15V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             )}
-            <span className="hidden sm:inline">{t.downloadPdf || "Download"}</span>
+            <span className="hidden sm:inline font-sans">{t.downloadPdf || "Download"}</span>
           </button>
 
           <button 
@@ -557,26 +610,25 @@ const ReceiptModal = ({
         className="flex-1 overflow-auto bg-slate-900/50 p-4 md:p-8 flex justify-center items-start print:p-0 print:bg-white print:block print:overflow-visible"
         onClick={(e) => e.target === containerRef.current && onClose()}
       >
-        {/* Wrapper for Scaling: This div shrinks visually but keeps children large */}
+        {/* Wrapper for Scaling */}
         <div 
           className="relative transition-transform duration-200 ease-out origin-top print:transform-none print:w-full"
           style={{ 
             transform: `scale(${scale})`,
-            marginBottom: `${(297 * scale)}mm` // Prevent bottom cut-off when scrolling
+            marginBottom: `${(297 * scale)}mm`
           }}
         >
-          {/* ACTUAL A4 DOCUMENT 
-            Width: 210mm, Height: 297mm 
-          */}
+          {/* ACTUAL A4 DOCUMENT */}
           <div
             ref={printAreaRef}
             id="receipt-print-area"
             className="bg-white shadow-2xl print:shadow-none"
             style={{
               width: "210mm",
-              minHeight: "297mm", // minHeight allows content to push if needed, but A4 is usually fixed
+              height: "297mm",
               position: "relative",
               direction: "rtl",
+              fontFamily: "'Cairo', sans-serif"
             }}
           >
             <div className="w-full h-full p-[16mm] flex flex-col justify-between relative overflow-hidden box-border">
@@ -587,51 +639,59 @@ const ReceiptModal = ({
               </div>
 
               {/* === RECEIPT CONTENT === */}
-              <div className="relative z-10 flex flex-col h-full justify-between">
+              <div className="relative z-10 flex flex-col h-full justify-between text-slate-900">
                 
                 {/* Header */}
                 <header className="text-center border-b-2 border-slate-900 pb-8">
                   <div className="flex justify-center mb-6">
                     <img src={logoPath} className="h-[28mm] object-contain" alt="Logo" />
                   </div>
-                  <h1 className="text-2xl font-extrabold text-slate-900 mb-1">{t.appTitle}</h1>
-                  <p className="text-base font-medium text-slate-600">{t.subTitle}</p>
+                  <h1 className="text-3xl font-extrabold text-slate-900 mb-2">{t.appTitle}</h1>
+                  <p className="text-lg font-semibold text-slate-600">{t.subTitle}</p>
                   
-                  <div className="mt-6 inline-block bg-slate-900 text-white px-6 py-1.5 rounded-full font-mono text-lg font-bold tracking-widest shadow-sm">
-                    {String(donation.operationNumber).padStart(4, "0")} :رقم الوصل
+                  {/* Corrected Receipt Number Layout using Flexbox for precise RTL alignment */}
+                  <div className="mt-8 flex items-center justify-center gap-3">
+                    <div className="bg-slate-900 text-white px-8 py-2 rounded-full shadow-md flex items-center gap-3">
+                      <span className="text-xl font-bold pt-1">رقم الوصل:</span>
+                      <span className="font-mono text-2xl font-bold tracking-widest bg-slate-800 px-2 rounded dir-ltr">
+                        {String(donation.operationNumber).padStart(4, "0")}
+                      </span>
+                    </div>
                   </div>
                 </header>
 
                 {/* Body */}
-                <main className="flex-1 py-12 flex flex-col gap-10">
+                <main className="flex-1 py-12 flex flex-col gap-12 px-4">
                   
                   {/* Row 1: Name */}
                   <div className="flex items-end gap-6">
-                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right">
-                      : {t.receiptName}
+                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
+                      {t.receiptName} :
                     </div>
-                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-1 text-xl font-semibold text-slate-800">
+                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
                       {donation.donorName || t.guest}
                     </div>
                   </div>
 
                   {/* Row 2: Amount */}
                   <div className="flex items-end gap-6">
-                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right">
-                      : {t.receiptAmount}
+                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
+                      {t.receiptAmount} :
                     </div>
-                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-1 text-3xl font-black text-slate-900">
-                      {formatMoney(donation.amount)} 
-                      <span className="text-lg text-slate-500 font-bold mr-2">({t.currency})</span>
+                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 flex items-center justify-center gap-3">
+                      <span className="text-4xl font-black text-slate-900 dir-ltr inline-block">
+                        {formatMoney(donation.amount)}
+                      </span>
+                      <span className="text-xl text-slate-500 font-bold mt-2">({t.currency})</span>
                     </div>
                   </div>
 
                   {/* Row 3: Date */}
                   <div className="flex items-end gap-6">
-                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right">
-                      : {t.receiptDate}
+                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
+                      {t.receiptDate} :
                     </div>
-                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-1 text-xl font-semibold text-slate-800">
+                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
                       {formatDate(donation.date)}
                     </div>
                   </div>
@@ -640,26 +700,26 @@ const ReceiptModal = ({
 
                 {/* Footer */}
                 <footer className="mt-auto">
-                  <div className="flex justify-between items-start mb-12">
+                  <div className="flex justify-between items-start mb-16 px-8">
                     {/* Received By */}
                     <div className="text-center w-5/12">
-                      <p className="font-bold text-slate-900 underline decoration-2 underline-offset-4 mb-3">
+                      <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-4">
                         {t.receivedBy}
                       </p>
-                      <p className="text-lg text-slate-700 font-medium">
+                      <p className="text-2xl text-slate-700 font-semibold font-handwriting">
                         {donation.memberName}
                       </p>
                     </div>
 
                     {/* Signature */}
                     <div className="text-center w-5/12">
-                      <p className="font-bold text-slate-900 underline decoration-2 underline-offset-4 mb-3">
+                      <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-4">
                         {t.receiptSignature}
                       </p>
-                      <div className="h-[35mm] flex items-center justify-center">
+                      <div className="h-[35mm] flex items-center justify-center relative">
                         <img 
                           src={signatureUrl} 
-                          className="max-h-full object-contain -rotate-6 opacity-90 mix-blend-multiply" 
+                          className="max-h-full object-contain -rotate-6 opacity-90 mix-blend-multiply absolute" 
                           alt="Signature"
                         />
                       </div>
@@ -667,9 +727,9 @@ const ReceiptModal = ({
                   </div>
 
                   {/* Bottom Strip */}
-                  <div className="border-t border-slate-200 pt-4 text-center">
-                    <p className="text-sm text-slate-400 font-medium">
-                      {t.appTitle} | {t.receiptFooter}
+                  <div className="border-t-2 border-slate-100 pt-6 text-center">
+                    <p className="text-sm text-slate-400 font-semibold tracking-wide">
+                      {t.appTitle} &nbsp;|&nbsp; {t.receiptFooter}
                     </p>
                   </div>
                 </footer>
@@ -682,15 +742,24 @@ const ReceiptModal = ({
 
       {/* Print Styles */}
       <style>{`
+        /* Force LTR direction for specific numbers to prevent flipping */
+        .dir-ltr { direction: ltr; unicode-bidi: isolate; }
+        
         @media print {
           @page { size: A4; margin: 0; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          #receipt-print-area { width: 210mm !important; height: 297mm !important; box-shadow: none !important; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
+          #receipt-print-area { width: 210mm !important; height: 297mm !important; box-shadow: none !important; margin: 0 !important; page-break-after: always; }
+          .fixed { position: static !important; display: block !important; }
         }
       `}</style>
     </div>
   );
 };
+
+
+
+
+
 
 
 // --- 5. MAIN VIEWS ---
