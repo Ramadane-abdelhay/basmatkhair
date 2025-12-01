@@ -475,52 +475,142 @@ const ReceiptModal = ({
 
   const handlePrint = () => window.print();
 
-// 4. Robust PDF Download (jsPDF HTML ENGINE)
+// 4. Robust PDF Download (jsPDF html engine with desktop clone + fallback)
 const downloadPDF = async () => {
-if (!libsLoaded) {
-alert("Please wait for PDF tools to load...");
-return;
-}
+  if (!libsLoaded) {
+    alert("Please wait for PDF tools to load...");
+    return;
+  }
+  const original = printAreaRef.current;
+  if (!original) return;
 
+  setIsGenerating(true);
 
-const element = printAreaRef.current;
-if (!element) return;
+  // Convert A4 mm -> px at 96 DPI: px = mm * 96 / 25.4
+  const mmToPx = (mm) => Math.round(mm * 96 / 25.4);
+  const A4_PX_WIDTH = mmToPx(210); // ~794px
 
+  try {
+    const html2canvas = window.html2canvas;
+    const { jsPDF } = window.jspdf;
 
-setIsGenerating(true);
+    // Wait for webfonts to be ready (important for Arabic shaping)
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
 
+    // ---------------------------
+    // 1) Create hidden wrapper
+    // ---------------------------
+    const wrapper = document.createElement("div");
+    wrapper.id = "desktop-pdf-wrapper";
+    wrapper.style.position = "fixed";
+    wrapper.style.top = "-5000px";
+    wrapper.style.left = "0";
+    wrapper.style.width = `${A4_PX_WIDTH}px`; // use pixel width for A4
+    wrapper.style.background = "#ffffff";
+    wrapper.style.zIndex = "-999999";
+    wrapper.style.opacity = "0";
+    wrapper.style.pointerEvents = "none";
+    // Prevent print/page CSS from applying to the clone
+    wrapper.classList.add("no-print-clone");
 
-try {
-const { jsPDF } = window.jspdf;
-const pdf = new jsPDF({ unit: "mm", format: "a4", compress: true });
+    document.body.appendChild(wrapper);
 
+    // ---------------------------
+    // 2) Clone and normalize styles
+    // ---------------------------
+    const clone = original.cloneNode(true);
 
-// High‑accuracy HTML renderer
-await pdf.html(element, {
-html2canvas: {
-scale: 2,
-backgroundColor: "#ffffff",
-useCORS: true,
-logging: false,
-windowWidth: 1200,
-},
-autoPaging: "text",
-margin: 0,
-width: 210, // A4 width in mm
-x: 0,
-y: 0,
-callback: function () {
-pdf.save(
-`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`
-);
-},
-});
-} catch (err) {
-console.error("PDF Generation failed", err);
-alert("Error generating PDF. Please use the Print button fallback.");
-} finally {
-setIsGenerating(false);
-}
+    // remove transforms and scaling that affect visual preview
+    clone.style.transform = "none";
+    clone.style.margin = "0";
+    clone.style.padding = "0";
+    // Force clone to the A4 pixel width; height auto so content flows and pdf.html paginates properly
+    clone.style.boxSizing = "border-box";
+    clone.style.width = `${A4_PX_WIDTH}px`;
+    clone.style.height = "auto";
+    clone.style.direction = original.style.direction || "rtl";
+    clone.style.fontFamily = "'Cairo', sans-serif";
+
+    // Remove any print-only absolute positioning that might create blank areas
+    // (small safe cleanup — non-destructive)
+    clone.querySelectorAll("*").forEach((el) => {
+      el.style.pageBreakAfter = "auto";
+      el.style.pageBreakBefore = "auto";
+      el.style.breakInside = "avoid";
+      // ensure no transforms remain
+      el.style.transform = el.style.transform === "" ? "none" : el.style.transform;
+    });
+
+    wrapper.appendChild(clone);
+
+    // ---------------------------
+    // 3) Use jsPDF.html() (preferred)
+    // ---------------------------
+    let usedHtmlEngine = false;
+    try {
+      const pdf = new jsPDF({
+        unit: "mm",
+        format: "a4",
+        compress: true
+      });
+
+      // Provide html2canvas config via the html() call so it uses the same dimensions
+      await pdf.html(clone, {
+        x: 0,
+        y: 0,
+        margin: [0, 0, 0, 0],
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+          width: A4_PX_WIDTH, // important: tell html2canvas the exact px width we used
+        },
+        autoPaging: "text",
+        // callback will be executed after rendering
+      });
+
+      // Save after html finished (some versions fire save inside callback; safe to call here)
+      pdf.save(`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`);
+      usedHtmlEngine = true;
+    } catch (eHtml) {
+      // html engine failed — we'll fallback to image method below
+      console.warn("pdf.html() failed, falling back to image capture:", eHtml);
+      usedHtmlEngine = false;
+    }
+
+    // ---------------------------
+    // 4) Fallback: rasterize with html2canvas -> JPEG -> jsPDF
+    // ---------------------------
+    if (!usedHtmlEngine) {
+      // Render at high resolution and exact px width
+      const canvas = await html2canvas(clone, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        width: A4_PX_WIDTH,
+        windowWidth: A4_PX_WIDTH,
+        windowHeight: Math.max(1600, clone.scrollHeight + 100),
+      });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.78);
+      const pdf = new jsPDF("p", "mm", "a4");
+      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+      pdf.save(`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`);
+    }
+
+  } catch (err) {
+    console.error("PDF Generation failed", err);
+    alert("Error generating PDF. Try the Print button instead.");
+  } finally {
+    // Cleanup
+    const temp = document.getElementById("desktop-pdf-wrapper");
+    if (temp) temp.remove();
+    setIsGenerating(false);
+  }
 };
 
 
