@@ -393,7 +393,6 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
 
 const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang }) => {
   
-  // Signature Image URL provided by user
   const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
 
   useEffect(() => {
@@ -410,21 +409,17 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
     if (!element) return;
 
     try {
-      // Create a high-quality canvas of the receipt
       const canvas = await html2canvas(element, {
-        scale: 2.5, // High resolution for text clarity
+        scale: 2.5,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false
       });
 
       const imgData = canvas.toDataURL("image/jpeg", 1.0);
-      const pdf = new jsPDF("p", "mm", "a5"); // A5 is better for receipts
+      const pdf = new jsPDF("p", "mm", "a5");
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      // Calculate aspect ratio to fit width
       const imgProps = pdf.getImageProperties(imgData);
       const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
@@ -432,7 +427,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
       pdf.save(`Receipt_${donation.operationNumber}.pdf`);
     } catch (err) {
       console.error("PDF Generation failed", err);
-      alert("Error generating PDF. Please try printing to PDF using the print button.");
+      alert("Error generating PDF. Please try printing to PDF.");
     }
   };
 
@@ -443,7 +438,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
       
       <div className="bg-white w-full max-w-xl rounded-none md:rounded-2xl shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
         
-        {/* Header Actions */}
+        {/* Header */}
         <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t.dir}>
           <div className="flex items-center gap-2 text-white font-bold">
             <Receipt size={20} className="text-emerald-400" />
@@ -451,188 +446,147 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
           </div>
 
           <div className="flex gap-2">
-            <button
-              onClick={downloadPDF}
-              className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
-            >
+            <button onClick={downloadPDF} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
               <Download size={16} />
               <span className="hidden sm:inline">{t.downloadPdf}</span>
             </button>
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
-            >
+            <button onClick={handlePrint} className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
               <Printer size={16} />
               <span className="hidden sm:inline">{t.printReceipt}</span>
             </button>
-            <button
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition"
-            >
+            <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition">
               <X size={24} />
             </button>
           </div>
         </div>
 
-        {/* Scrollable Preview Area */}
+        {/* Scrollable Preview */}
         <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
-          
-          {/* --- NEW RECEIPT LAYOUT --- */}
-          <div
-            id="receipt-print-area"
-            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm]"
-            style={{ padding: '30px' }}
-            dir="rtl"
-          >
-            {/* Border Box */}
-            <div className="border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
-              
-              {/* Background Watermark */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
-                 <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
-              </div>
 
-              {/* 1. Header */}
-              <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
-                <div className="flex justify-center mb-4">
-                  <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
-                </div>
-                <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
-                <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
-                <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
-                   رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
-                </div>
-              </div>
+          {/* ✅ SCALE WRAPPER (NEW) */}
+          <div className="receipt-scale-wrapper">
 
-              {/* 2. Content Body (Dotted Lines) */}
-              <div className="flex-1 space-y-8 text-xl px-2">
-                
-                {/* Full Name */}
-                <div className="flex items-baseline w-full leading-loose">
-                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptName} :</span>
-                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800 relative bottom-[5px]">
-                     {donation.donorName || t.guest}
-                   </div>
+            {/* RECEIPT */}
+            <div
+              id="receipt-print-area"
+              className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm]"
+              style={{ padding: '30px' }}
+              dir="rtl"
+            >
+              {/* BORDER */}
+              <div className="border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
+
+                {/* Watermark */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
+                  <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
                 </div>
 
-                {/* Amount */}
-                <div className="flex items-baseline w-full leading-loose">
-                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptAmount} :</span>
-                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900 relative bottom-[5px]">
-                     {formatMoney(donation.amount)} <span className="text-sm font-normal text-slate-500">({t.currency})</span>
-                   </div>
+                {/* Header */}
+                <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
+                  <div className="flex justify-center mb-4">
+                    <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
+                  </div>
+                  <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
+                  <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
+                  <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
+                    رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
+                  </div>
                 </div>
 
-                {/* Date */}
-                <div className="flex items-baseline w-full leading-loose">
-                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptDate} :</span>
-                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800 relative bottom-[5px]">
-                     {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
-                   </div>
+                {/* Content */}
+                <div className="flex-1 space-y-8 text-xl px-2">
+
+                  <div className="flex items-baseline w-full">
+                    <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptName} :</span>
+                    <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
+                      {donation.donorName || t.guest}
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline w-full">
+                    <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptAmount} :</span>
+                    <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900">
+                      {formatMoney(donation.amount)} <span className="text-sm text-slate-500">({t.currency})</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline w-full">
+                    <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptDate} :</span>
+                    <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
+                      {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
+                    </div>
+                  </div>
+
                 </div>
 
-              </div>
+                {/* Footer */}
+                <div className="mt-16 pt-8 flex justify-between items-start">
+                  <div className="text-center w-1/2">
+                    <p className="font-bold text-slate-700 mb-2 underline">{t.receivedBy}</p>
+                    <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
+                  </div>
 
-              {/* 3. Footer / Signatures */}
-              <div className="mt-16 pt-8 flex justify-between items-start">
-                
-                {/* Received By */}
-                <div className="text-center w-1/2">
-                   <p className="font-bold text-slate-700 mb-2 underline underline-offset-4">{t.receivedBy}</p>
-                   <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
-                </div>
-
-                {/* Signature */}
-                <div className="text-center w-1/2 relative">
-                   <p className="font-bold text-slate-700 mb-4 underline underline-offset-4">{t.receiptSignature}</p>
-                   <div className="h-20 flex items-center justify-center">
+                  <div className="text-center w-1/2">
+                    <p className="font-bold text-slate-700 mb-4 underline">{t.receiptSignature}</p>
+                    <div className="h-20 flex items-center justify-center">
                       <img 
-                        src={signatureUrl} 
-                        className="max-h-24 object-contain mix-blend-multiply -rotate-6" 
-                        alt="Signature"
+                        src={signatureUrl}
+                        className="max-h-24 object-contain mix-blend-multiply -rotate-6"
                       />
-                   </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Association Footer */}
-              <div className="mt-8 pt-4 border-t border-slate-200 text-center">
-                 <p className="text-[10px] text-slate-400">
+                <div className="mt-8 pt-4 border-t text-center">
+                  <p className="text-[10px] text-slate-400">
                     {t.receiptFooter} | {t.appTitle}
-                 </p>
-              </div>
+                  </p>
+                </div>
 
-            </div>
+              </div>
+            </div>  
           </div>
         </div>
       </div>
-      
+
+      {/* Styles */}
       <style>{`
+        /* ✅ MOBILE SCALE FIX */
+        .receipt-scale-wrapper {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+        }
+
+        #receipt-print-area {
+          transform: scale(1);
+          transform-origin: top center;
+        }
+
+        @media (max-width: 480px) {
+          #receipt-print-area {
+            transform: scale(0.78);
+            width: 128% !important;
+          }
+        }
+
         @media print {
           @page { size: A5; margin: 0; }
-          body { background: white; }
           #receipt-print-area {
-             width: 100% !important;
-             max-width: 100% !important;
-             height: 100% !important;
-             border: none !important;
-             box-shadow: none !important;
-             padding: 10mm !important;
+            transform: scale(1) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 100% !important;
+            padding: 10mm !important;
+            box-shadow: none !important;
           }
         }
       `}</style>
+
     </div>
   );
 };
 
-const ConfirmationModal = ({ data, onConfirm, onCancel, t }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in" dir={t.dir}>
-    <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all scale-100">
-      <div className="bg-emerald-600 p-6 text-white text-center relative overflow-hidden">
-         <div className="absolute top-0 left-0 w-full h-full bg-white/10 opacity-30 transform -skew-y-6 origin-top-left scale-150"></div>
-         <Check className="w-12 h-12 mx-auto mb-2 relative z-10" />
-         <h3 className="font-bold text-xl relative z-10">{t.confirmTitle}</h3>
-      </div>
-      
-      <div className="p-6 space-y-4">
-        <p className="text-center text-slate-500 text-sm">{t.confirmMsg}</p>
-        
-        <div className="bg-slate-50 p-4 rounded-xl space-y-3 text-sm border border-slate-100 shadow-inner">
-           <div className="flex justify-between items-center">
-             <span className="text-slate-400">{t.donorName}</span>
-             <span className="font-bold text-slate-800">{data.donorName || t.guest}</span>
-           </div>
-           <div className="flex justify-between items-center">
-             <span className="text-slate-400">{t.amount}</span>
-             <span className="font-bold text-emerald-600 text-lg dir-ltr">{formatMoney(data.amount)}</span>
-           </div>
-           <div className="w-full h-px bg-slate-200 my-2"></div>
-           <div className="flex justify-between items-center">
-             <span className="text-slate-400">{t.method}</span>
-             <span className="font-medium text-slate-700">
-                {t.methods[data.method.toLowerCase().replace(/\s/g, '')] || data.method}
-             </span>
-           </div>
-        </div>
-
-        <div className="flex gap-3 mt-6">
-           <button 
-             onClick={onCancel}
-             className="flex-1 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl transition"
-           >
-             {t.btnCancel}
-           </button>
-           <button 
-             onClick={onConfirm}
-             className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition"
-           >
-             {t.btnConfirm}
-           </button>
-        </div>
-      </div>
-    </div>
-  </div>
-);
 
 // --- 5. MAIN VIEWS ---
 
