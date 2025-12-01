@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithCustomToken, 
-  signInAnonymously, 
+  signInWithEmailAndPassword, 
   onAuthStateChanged,
   signOut,
+  setPersistence,
+  browserSessionPersistence,
+  browserLocalPersistence
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -15,8 +18,7 @@ import {
   onSnapshot, 
   serverTimestamp,
   doc,
-  deleteDoc, 
-  updateDoc,
+  deleteDoc,
   orderBy
 } from 'firebase/firestore';
 import { 
@@ -49,1186 +51,1536 @@ import {
   Globe, 
   Languages, 
   LogIn,
-  FileSpreadsheet, // For sheet export
-  Loader,
+  FileSpreadsheet
 } from 'lucide-react';
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 // --- 1. CONFIGURATION & SETUP ---
 
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-// Mock user data structure
-const mockUser = {
-  uid: 'guest',
-  email: 'guest@example.com',
-  displayName: 'مستخدم ضيف',
-  role: 'admin' // default role for guest
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID
 };
 
-// Application translations (Arabic/English)
-const translations = {
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const appId = 'basmat-khair-app';
+
+// --- 2. CONSTANTS & TRANSLATIONS ---
+
+const BRAND = {
+  main: '#047857',   
+  dark: '#064e3b',   
+  light: '#d1fae5',  
+  accent: '#d97706', 
+  bg: '#f8fafc',
+  text: '#1e293b'
+};
+
+const TRANSLATIONS = {
   ar: {
     dir: 'rtl',
-    appTitle: 'إدارة التبرعات',
-    navDashboard: 'اللوحة الرئيسية',
-    navDonations: 'قائمة التبرعات',
-    navSettings: 'الإعدادات',
-    signOut: 'تسجيل الخروج',
-    signIn: 'تسجيل الدخول',
-    currency: 'ريال', // Assuming a currency, e.g., SAR, change as needed
-    dashboardTitle: 'ملخص التبرعات',
-    donationCount: 'إجمالي التبرعات',
-    totalAmount: 'إجمالي المبلغ',
-    latestDonations: 'أحدث التبرعات',
-    noDonations: 'لا توجد تبرعات مسجلة بعد.',
-    viewDetails: 'عرض التفاصيل',
-    addDonation: 'إضافة تبرع جديد',
-    donorName: 'اسم المتبرع',
-    amount: 'المبلغ',
-    paymentMethod: 'طريقة الأداء',
-    notes: 'ملاحظات',
-    date: 'التاريخ',
-    user: 'المستخدم',
-    CreditCard: 'بطاقة ائتمانية',
-    Banknote: 'نقدي',
-    OnlineTransfer: 'تحويل إلكتروني',
-    Add: 'إضافة',
-    Cancel: 'إلغاء',
-    donationDetails: 'تفاصيل التبرع',
-    deleteDonation: 'حذف التبرع',
-    confirmDelete: 'هل أنت متأكد من حذف هذا التبرع؟',
-    receiptDownload: 'تنزيل الإيصال (PDF)',
-    editDonation: 'تعديل التبرع',
-    saveChanges: 'حفظ التغييرات',
-    exportSheet: 'تصدير كجدول بيانات',
-    settingsTitle: 'إعدادات التطبيق',
-    selectLanguage: 'اختر اللغة',
-    languageEnglish: 'الإنجليزية',
-    languageArabic: 'العربية',
-    userId: 'معرّف المستخدم',
-    receiptTitle: 'إيصال تبرع',
-    managerSignature: 'المدير/المستخدم',
-    donorSignature: 'المتبرع',
-    societyName: 'بصمة خير للعمل الخيري',
+    langName: "العربية",
+    appTitle: "جمعية بصمة خير",
+    subTitle: "للأعمال الاجتماعية والخيرية",
+    dashboard: "الرئيسية",
+    add: "تبرع جديد",
+    history: "الأرشيف",
+    members: "الأعضاء",
+    signOut: "تسجيل الخروج",
+    welcome: "مرحباً بك",
+    guest: "فاعل خير",
+    roleAdmin: "مسؤول النظام",
+    roleMember: "عضو نشيط",
+    totalCollected: "المجموع المحصل",
+    totalOps: "عدد العمليات",
+    uniqueDonors: "المتبرعون",
+    collectedByMember: "أداء الأعضاء",
+    recentActivity: "أحدث التبرعات",
+    noData: "لا توجد بيانات متاحة للعرض",
+    recordTitle: "تسجيل تبرع جديد",
+    donorName: "اسم المتبرع",
+    amount: "المبلغ",
+    phone: "الهاتف",
+    method: "طريقة الأداء",
+    bankDetails: "بيانات البنك / الشيك",
+    description: "ملاحظات إضافية",
+    memberResponsable: "المكلف بالعملية",
+    dateFixed: "تاريخ العملية",
+    btnRecord: "حفظ ومتابعة",
+    btnSaving: "جاري المعالجة...",
+    confirmTitle: "مراجعة وتأكيد",
+    confirmMsg: "يرجى التحقق من صحة البيانات قبل الحفظ النهائي",
+    btnConfirm: "تأكيد العملية",
+    btnCancel: "تعديل",
+    searchPlaceholder: "بحث باسم المتبرع أو المبلغ...",
+    methods: {
+      cash: "نقداً",
+      transfer: "تحويل بنكي",
+      check: "شيك",
+      other: "أخرى"
+    },
+    email: "البريد الإلكتروني",
+    password: "كلمة المرور",
+    rememberMe: "تذكرني", 
+    invalidCreds: "خطاء في البريد أو كلمة المرور",
+    errorAmount: "المرجو إدخال مبلغ صحيح",
+    successMsg: "تمت العملية بنجاح",
+    actions: "إجراءات",
+    viewReceipt: "معاينة الوصل",
+    downloadPdf: "تحميل PDF",
+    printReceipt: "طباعة الوصل",
+    delete: "حذف",
+    opNumber: "رقم العملية",
+    receivedBy: "المستلم",
+    receiptTitle: "وصل تبرع",
+    receiptAssocName: "جمعية بصمة خير للأعمال الاجتماعية",
+    receiptFooter: "شكراً لانخراطكم ودعمكم لأنشطة الجمعية",
+    receiptSignature: "توقيع المستلم",
+    receiptName: "الاسم الكامل",
+    receiptAmount: "المبلغ المؤدى",
+    receiptDate: "تاريخ الأداء",
+    receiptMethod: "بواسطة",
+    deleteConfirm: "هل أنت متأكد من حذف هذا السجل نهائياً؟",
+    loginTitle: "بوابة الأعضاء",
+    loginSub: "تسجيل الدخول للمتابعة",
+    btnEnter: "دخول النظام",
+    loginAsGuest: "دخول كضيف",
+    selectLang: "اختر اللغة",
+    exportSheet: "تصدير البيانات (Excel)",
+    currency: "درهم"
   },
   en: {
     dir: 'ltr',
-    appTitle: 'Donation Management',
-    navDashboard: 'Dashboard',
-    navDonations: 'Donations List',
-    navSettings: 'Settings',
-    signOut: 'Sign Out',
-    signIn: 'Sign In',
-    currency: 'SAR',
-    dashboardTitle: 'Donation Summary',
-    donationCount: 'Total Donations',
-    totalAmount: 'Total Amount',
-    latestDonations: 'Latest Donations',
-    noDonations: 'No donations recorded yet.',
-    viewDetails: 'View Details',
-    addDonation: 'Add New Donation',
-    donorName: 'Donor Name',
-    amount: 'Amount',
-    paymentMethod: 'Payment Method',
-    notes: 'Notes',
-    date: 'Date',
-    user: 'User',
-    CreditCard: 'Credit Card',
-    Banknote: 'Cash',
-    OnlineTransfer: 'Online Transfer',
-    Add: 'Add',
-    Cancel: 'Cancel',
-    donationDetails: 'Donation Details',
-    deleteDonation: 'Delete Donation',
-    confirmDelete: 'Are you sure you want to delete this donation?',
-    receiptDownload: 'Download Receipt (PDF)',
-    editDonation: 'Edit Donation',
-    saveChanges: 'Save Changes',
-    exportSheet: 'Export as Spreadsheet',
-    settingsTitle: 'Application Settings',
-    selectLanguage: 'Select Language',
-    languageEnglish: 'English',
-    languageArabic: 'Arabic',
-    userId: 'User ID',
-    receiptTitle: 'Donation Receipt',
-    managerSignature: 'Manager/User',
-    donorSignature: 'Donor',
-    societyName: 'Basmat Khair Charitable Society',
+    langName: "English",
+    appTitle: "Basmat Khair",
+    subTitle: "For Social & Charitable Works",
+    dashboard: "Dashboard",
+    add: "New Donation",
+    history: "History",
+    members: "Members",
+    signOut: "Sign Out",
+    welcome: "Welcome",
+    guest: "Benefactor",
+    roleAdmin: "Admin",
+    roleMember: "Member",
+    totalCollected: "Total Collected",
+    totalOps: "Total Operations",
+    uniqueDonors: "Donors",
+    collectedByMember: "Member Performance",
+    recentActivity: "Recent Donations",
+    noData: "No data available to display",
+    recordTitle: "Record New Donation",
+    donorName: "Donor Name",
+    amount: "Amount",
+    phone: "Phone",
+    method: "Payment Method",
+    bankDetails: "Bank/Check Details",
+    description: "Additional Notes",
+    memberResponsable: "Responsible Member",
+    dateFixed: "Operation Date",
+    btnRecord: "Save & Continue",
+    btnSaving: "Processing...",
+    confirmTitle: "Review & Confirm",
+    confirmMsg: "Please verify data before final saving",
+    btnConfirm: "Confirm",
+    btnCancel: "Edit",
+    searchPlaceholder: "Search by donor name or amount...",
+    methods: {
+      cash: "Cash",
+      transfer: "Bank Transfer",
+      check: "Check",
+      other: "Other"
+    },
+    email: "Email",
+    password: "Password",
+    rememberMe: "Remember Me", 
+    invalidCreds: "Invalid email or password",
+    errorAmount: "Please enter a valid amount",
+    successMsg: "Operation successful",
+    actions: "Actions",
+    viewReceipt: "View Receipt",
+    downloadPdf: "Download PDF",
+    printReceipt: "Print Receipt",
+    delete: "Delete",
+    opNumber: "Op Number",
+    receivedBy: "Received By",
+    receiptTitle: "Donation Receipt",
+    receiptAssocName: "Basmat Khair Association",
+    receiptFooter: "Thank you for your support",
+    receiptSignature: "Recipient Signature",
+    receiptName: "Full Name",
+    receiptAmount: "Amount Paid",
+    receiptDate: "Payment Date",
+    receiptMethod: "Via",
+    deleteConfirm: "Are you sure you want to permanently delete this record?",
+    loginTitle: "Member Portal",
+    loginSub: "Please log in to continue",
+    btnEnter: "Enter System",
+    loginAsGuest: "Enter as Guest",
+    selectLang: "Select Language",
+    exportSheet: "Export Sheet (Excel)",
+    currency: "MAD"
+  },
+  fr: {
+    dir: 'ltr',
+    langName: "Français",
+    appTitle: "Basmat Khair",
+    subTitle: "Pour les Œuvres Sociales",
+    dashboard: "Tableau de bord",
+    add: "Nouveau Don",
+    history: "Historique",
+    members: "Membres",
+    signOut: "Déconnexion",
+    welcome: "Bienvenue",
+    guest: "Bienfaiteur",
+    roleAdmin: "Administrateur",
+    roleMember: "Membre",
+    totalCollected: "Total Collecté",
+    totalOps: "Opérations",
+    uniqueDonors: "Donateurs",
+    collectedByMember: "Performance Membres",
+    recentActivity: "Dons Récents",
+    noData: "Aucune donnée disponible",
+    recordTitle: "Enregistrer un Don",
+    donorName: "Nom du Donateur",
+    amount: "Montant",
+    phone: "Téléphone",
+    method: "Méthode",
+    bankDetails: "Détails Banque/Chèque",
+    description: "Notes Supplémentaires",
+    memberResponsable: "Membre Responsable",
+    dateFixed: "Date d'Opération",
+    btnRecord: "Sauvegarder",
+    btnSaving: "Traitement...",
+    confirmTitle: "Vérifier et Confirmer",
+    confirmMsg: "Veuillez vérifier les données avant l'enregistrement",
+    btnConfirm: "Confirmer",
+    btnCancel: "Modifier",
+    searchPlaceholder: "Chercher par nom ou montant...",
+    methods: {
+      cash: "Espèces",
+      transfer: "Virement",
+      check: "Chèque",
+      other: "Autre"
+    },
+    email: "E-mail",
+    password: "Mot de passe",
+    rememberMe: "Se souvenir de moi",
+    invalidCreds: "Email ou mot de passe incorrect",
+    errorAmount: "Veuillez entrer un montant valide",
+    successMsg: "Opération réussie",
+    actions: "Actions",
+    viewReceipt: "Voir Reçu",
+    downloadPdf: "Télécharger PDF",
+    printReceipt: "Imprimer Reçu",
+    delete: "Supprimer",
+    opNumber: "N° Opération",
+    receivedBy: "Reçu Par",
+    receiptTitle: "Reçu de Don",
+    receiptAssocName: "Association Basmat Khair",
+    receiptFooter: "Merci pour votre soutien",
+    receiptSignature: "Signature",
+    receiptName: "Nom Complet",
+    receiptAmount: "Montant Payé",
+    receiptDate: "Date de Paiement",
+    receiptMethod: "Par",
+    deleteConfirm: "Êtes-vous sûr de vouloir supprimer cet enregistrement ?",
+    loginTitle: "Portail Membres",
+    loginSub: "Veuillez vous connecter",
+    btnEnter: "Entrer au Système",
+    loginAsGuest: "Entrer comme Invité",
+    selectLang: "Choisir la Langue",
+    exportSheet: "Exporter (Excel)",
+    currency: "MAD"
   }
 };
 
-// --- 2. FIREBASE INITIALIZATION & AUTH ---
+// --- 3. UTILITIES ---
 
-let app, db, auth;
+const formatMoney = (amount, currency = 'MAD', locale = 'ar-MA') => 
+  new Intl.NumberFormat(locale, { 
+    style: 'currency', 
+    currency: currency,
+    minimumFractionDigits: 2
+  }).format(amount);
 
-try {
-  if (Object.keys(firebaseConfig).length) {
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
-  }
-} catch (error) {
-  console.error("Firebase initialization failed:", error);
-}
-
-// Helper to convert array of arrays to CSV string
-const convertArrayToCSV = (data) => {
-  return data.map(row => row.join('\t')).join('\n');
-};
-
-// --- 3. COMPONENTS ---
-
-// Component for adding/editing a donation
-const DonationForm = ({ t, initialData, onSave, onCancel }) => {
-  const [formData, setFormData] = useState({
-    donorName: initialData?.donorName || '',
-    amount: initialData?.amount || '',
-    paymentMethod: initialData?.paymentMethod || 'Banknote',
-    notes: initialData?.notes || '',
-    date: initialData?.date ? new Date(initialData.date).toISOString().substring(0, 10) : new Date().toISOString().substring(0, 10),
+const formatDate = (date, locale = 'ar-MA') => {
+  if (!date) return '';
+  const dateObj = date.toDate ? date.toDate() : new Date(date);
+  return dateObj.toLocaleDateString(locale, {
+    year: 'numeric', month: 'long', day: 'numeric'
   });
-  const [loading, setLoading] = useState(false);
+};
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+const formatTime = (date, locale = 'ar-MA') => {
+  if (!date) return '';
+  const dateObj = date.toDate ? date.toDate() : new Date(date);
+  return dateObj.toLocaleTimeString(locale, {
+    hour: '2-digit', minute: '2-digit'
+  });
+};
+
+// --- 4. COMPONENTS ---
+
+// New Preloader Component
+const Preloader = () => (
+  <div className="fixed inset-0 z-[200] bg-slate-50 flex flex-col items-center justify-center animate-in fade-in duration-300">
+    <div className="relative w-24 h-24 mb-8">
+      <div className="absolute inset-0 border-4 border-slate-200 rounded-full"></div>
+      <div className="absolute inset-0 border-4 border-emerald-600 rounded-full border-t-transparent animate-spin"></div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-12 h-12 bg-emerald-600 rounded-full animate-pulse shadow-lg shadow-emerald-200"></div>
+      </div>
+    </div>
+    <h2 className="text-2xl font-black text-slate-800 animate-pulse">جاري التحميل...</h2>
+    <p className="text-slate-400 font-medium mt-2">يرجى الانتظار قليلاً</p>
+  </div>
+);
+
+// Language Selector Component
+const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = false }) => {
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownRef, setIsOpen]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition w-full"
+      >
+        <Globe size={20} className="text-emerald-600" />
+        <span className="text-sm font-bold">{TRANSLATIONS[currentLang].langName}</span>
+        <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''} ml-auto`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute ${up ? 'bottom-full mb-2' : 'top-full mt-2'} right-0 w-full min-w-[140px] bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden`}>
+          {Object.keys(TRANSLATIONS).map((langKey) => (
+            <button
+              key={langKey}
+              onClick={() => {
+                setLang(langKey);
+                setIsOpen(false);
+              }}
+              className={`w-full text-start px-4 py-3 text-sm font-medium hover:bg-slate-50 transition flex items-center justify-between ${currentLang === langKey ? 'text-emerald-600 bg-emerald-50' : 'text-slate-700'}`}
+            >
+              <span>{TRANSLATIONS[langKey].langName}</span>
+              {currentLang === langKey && <Check size={14} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang }) => {
+  
+  // Signature Image URL provided by user
+  const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
+
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => window.print(), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
+
+  const handlePrint = () => window.print();
+
+  const downloadPDF = async () => {
+    const element = document.getElementById("receipt-print-area");
+    if (!element) return;
+
+    try {
+      // Create a high-quality canvas of the receipt
+      const canvas = await html2canvas(element, {
+        scale: 2.5, // High resolution for text clarity
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false
+      });
+
+      const imgData = canvas.toDataURL("image/jpeg", 1.0);
+      const pdf = new jsPDF("p", "mm", "a5"); // A5 is better for receipts
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      // Calculate aspect ratio to fit width
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, imgHeight);
+      pdf.save(`Receipt_${donation.operationNumber}.pdf`);
+    } catch (err) {
+      console.error("PDF Generation failed", err);
+      alert("Error generating PDF. Please try printing to PDF using the print button.");
+    }
   };
 
-  const handleSubmit = async (e) => {
+  if (!donation) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
+      
+      <div className="bg-white w-full max-w-xl rounded-none md:rounded-2xl shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
+        
+        {/* Header Actions */}
+        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t.dir}>
+          <div className="flex items-center gap-2 text-white font-bold">
+            <Receipt size={20} className="text-emerald-400" />
+            <span>{t.viewReceipt}</span>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={downloadPDF}
+              className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
+            >
+              <Download size={16} />
+              <span className="hidden sm:inline">{t.downloadPdf}</span>
+            </button>
+            <button
+              onClick={handlePrint}
+              className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm"
+            >
+              <Printer size={16} />
+              <span className="hidden sm:inline">{t.printReceipt}</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition"
+            >
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable Preview Area */}
+        <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
+          
+          {/* --- NEW RECEIPT LAYOUT --- */}
+          <div
+            id="receipt-print-area"
+            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm] md:min-h-0"
+            style={{ padding: '30px' }}
+            dir="rtl"
+          >
+            {/* Border Box */}
+            <div className="border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
+              
+              {/* Background Watermark */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
+                 <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
+              </div>
+
+              {/* 1. Header */}
+              <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
+                <div className="flex justify-center mb-4">
+                  <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
+                <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
+                <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
+                   رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
+                </div>
+              </div>
+
+              {/* 2. Content Body (Dotted Lines) */}
+              <div className="flex-1 space-y-8 text-xl px-2">
+                
+                {/* Full Name */}
+                <div className="flex items-baseline w-full leading-loose">
+                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptName} :</span>
+                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800 relative bottom-[5px]">
+                     {donation.donorName || t.guest}
+                   </div>
+                </div>
+
+                {/* Amount */}
+                <div className="flex items-baseline w-full leading-loose">
+                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptAmount} :</span>
+                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900 relative bottom-[5px]">
+                     {formatMoney(donation.amount)} <span className="text-sm font-normal text-slate-500">({t.currency})</span>
+                   </div>
+                </div>
+
+                {/* Date */}
+                <div className="flex items-baseline w-full leading-loose">
+                   <span className="font-bold text-slate-900 ml-3 whitespace-nowrap min-w-fit">{t.receiptDate} :</span>
+                   <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800 relative bottom-[5px]">
+                     {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
+                   </div>
+                </div>
+
+              </div>
+
+              {/* 3. Footer / Signatures */}
+              <div className="mt-16 pt-8 flex justify-between items-start">
+                
+                {/* Received By */}
+                <div className="text-center w-1/2">
+                   <p className="font-bold text-slate-700 mb-2 underline underline-offset-4">{t.receivedBy}</p>
+                   <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
+                </div>
+
+                {/* Signature */}
+                <div className="text-center w-1/2 relative">
+                   <p className="font-bold text-slate-700 mb-4 underline underline-offset-4">{t.receiptSignature}</p>
+                   <div className="h-20 flex items-center justify-center">
+                      <img 
+                        src={signatureUrl} 
+                        className="max-h-24 object-contain mix-blend-multiply -rotate-6" 
+                        alt="Signature"
+                      />
+                   </div>
+                </div>
+              </div>
+
+              {/* Association Footer */}
+              <div className="mt-8 pt-4 border-t border-slate-200 text-center">
+                 <p className="text-[10px] text-slate-400">
+                    {t.receiptFooter} | {t.appTitle}
+                 </p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <style>{`
+        @media print {
+          @page { size: A5; margin: 0; }
+          body { background: white; }
+          #receipt-print-area {
+             width: 100% !important;
+             max-width: 100% !important;
+             height: 100% !important;
+             border: none !important;
+             box-shadow: none !important;
+             padding: 10mm !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+const ConfirmationModal = ({ data, onConfirm, onCancel, t }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in" dir={t.dir}>
+    <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all scale-100">
+      <div className="bg-emerald-600 p-6 text-white text-center relative overflow-hidden">
+         <div className="absolute top-0 left-0 w-full h-full bg-white/10 opacity-30 transform -skew-y-6 origin-top-left scale-150"></div>
+         <Check className="w-12 h-12 mx-auto mb-2 relative z-10" />
+         <h3 className="font-bold text-xl relative z-10">{t.confirmTitle}</h3>
+      </div>
+      
+      <div className="p-6 space-y-4">
+        <p className="text-center text-slate-500 text-sm">{t.confirmMsg}</p>
+        
+        <div className="bg-slate-50 p-4 rounded-xl space-y-3 text-sm border border-slate-100 shadow-inner">
+           <div className="flex justify-between items-center">
+             <span className="text-slate-400">{t.donorName}</span>
+             <span className="font-bold text-slate-800">{data.donorName || t.guest}</span>
+           </div>
+           <div className="flex justify-between items-center">
+             <span className="text-slate-400">{t.amount}</span>
+             <span className="font-bold text-emerald-600 text-lg dir-ltr">{formatMoney(data.amount)}</span>
+           </div>
+           <div className="w-full h-px bg-slate-200 my-2"></div>
+           <div className="flex justify-between items-center">
+             <span className="text-slate-400">{t.method}</span>
+             <span className="font-medium text-slate-700">
+                {t.methods[data.method.toLowerCase().replace(/\s/g, '')] || data.method}
+             </span>
+           </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+           <button 
+             onClick={onCancel}
+             className="flex-1 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl transition"
+           >
+             {t.btnCancel}
+           </button>
+           <button 
+             onClick={onConfirm}
+             className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition"
+           >
+             {t.btnConfirm}
+           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// --- 5. MAIN VIEWS ---
+
+const Dashboard = ({ donations, t }) => {
+  const total = donations.reduce((sum, d) => sum + d.amount, 0);
+  const uniqueDonors = new Set(donations.filter(d => d.donorName && d.donorName !== t.guest).map(d => d.donorName)).size;
+  
+  const memberStats = useMemo(() => {
+    const stats = {};
+    donations.forEach(d => {
+      const name = d.memberName || t.guest;
+      if (!stats[name]) stats[name] = 0;
+      stats[name] += d.amount;
+    });
+    return Object.entries(stats).sort((a, b) => b[1] - a[1]);
+  }, [donations, t.guest]);
+
+  return (
+    <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto pb-24" dir={t.dir}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-3 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden bg-gradient-to-br from-emerald-800 to-emerald-600">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-0 w-40 h-40 bg-black/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2"></div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-end md:items-center">
+            <div className={t.dir === 'rtl' ? 'text-right' : 'text-left'}>
+              <p className="text-emerald-100 font-medium mb-2 flex items-center gap-2">
+                <Coins size={18} /> {t.totalCollected}
+              </p>
+              <h2 className="text-5xl md:text-6xl font-black tracking-tight dir-ltr drop-shadow-sm">{formatMoney(total)}</h2>
+            </div>
+            <div className="mt-6 md:mt-0 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+              <p className="text-xs text-emerald-100 mb-1">{t.recentActivity}</p>
+              <p className="text-xl font-bold">+{donations.filter(d => new Date(d.date) > new Date(Date.now() - 86400000)).length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-md transition">
+          <div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">{t.totalOps}</p>
+            <p className="text-3xl font-bold text-slate-800 mt-2">{donations.length}</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center">
+            <FileText size={24} />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-md transition">
+          <div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">{t.uniqueDonors}</p>
+            <p className="text-3xl font-bold text-slate-800 mt-2">{uniqueDonors}</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <Users size={24} />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+          <div className="p-6 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <Shield size={20} className="text-emerald-600" />
+              {t.collectedByMember}
+            </h3>
+          </div>
+          <div className="flex-1 p-2">
+            {memberStats.map(([name, amount], idx) => (
+              <div key={name} className="p-4 flex items-center justify-between hover:bg-slate-50 rounded-2xl transition mb-1 group">
+                <div className="flex items-center gap-4">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                    idx === 0 ? 'bg-yellow-100 text-yellow-700 ring-4 ring-yellow-50' : 
+                    idx === 1 ? 'bg-slate-200 text-slate-700' : 
+                    idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-400'
+                  }`}>
+                    {idx + 1}
+                  </div>
+                  <span className="font-bold text-slate-700 group-hover:text-emerald-700 transition">{name}</span>
+                </div>
+                <span className="font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg text-sm">{formatMoney(amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+          <div className="p-6 border-b border-slate-50 bg-slate-50/50">
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <Calendar size={20} className="text-emerald-600" />
+              {t.recentActivity}
+            </h3>
+          </div>
+          <div className="flex-1 p-2">
+            {donations.slice(0, 5).map(d => (
+              <div key={d.id} className="p-4 hover:bg-slate-50 rounded-2xl transition mb-1 border-b border-dashed border-slate-100 last:border-0 last:mb-0">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-bold text-slate-800">{d.donorName || t.guest}</span>
+                  <span className="font-bold text-emerald-600 dir-ltr text-sm">+{formatMoney(d.amount)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-slate-400 mt-2">
+                  <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-full"><User size={10} /> {d.memberName}</span>
+                  <span>{formatDate(d.date)}</span>
+                </div>
+              </div>
+            ))}
+            {donations.length === 0 && (
+                 <p className="text-center py-12 text-slate-400 font-medium text-sm">{t.noData}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [openMenu, setOpenMenu] = useState(null);
+
+  const filteredDonations = useMemo(() => {
+    return donations.filter(d => 
+      (d.donorName && d.donorName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (d.amount && d.amount.toString().includes(searchTerm))
+    );
+  }, [donations, searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenu(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  const toggleMenu = (e, id) => {
+    e.stopPropagation();
+    setOpenMenu(openMenu === id ? null : id);
+  };
+
+  // --- NEW: Professional Sheet Export ---
+  const handleExportExcel = () => {
+    
+    // 1. Define the content using HTML Table (This supports colors and merged cells in Excel)
+    let tableHTML = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="UTF-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>تبرعات الجمعية</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayRightToLeft/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body { font-family: 'Arial', sans-serif; }
+          .header-title { font-size: 24px; font-weight: bold; color: #047857; text-align: center; height: 50px; }
+          .header-sub { font-size: 16px; font-weight: bold; color: #555; text-align: center; }
+          .table-head { background-color: #047857; color: #ffffff; font-weight: bold; text-align: center; border: 1px solid #000; }
+          .row-even { background-color: #f3fcf8; }
+          .row-odd { background-color: #ffffff; }
+          .cell { text-align: center; vertical-align: middle; border: 1px solid #ccc; padding: 5px; }
+          .amount { font-weight: bold; color: #047857; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <!-- Decorative Header -->
+          <tr>
+            <td colspan="6" class="header-title">جمعية بصمة خير للأعمال الاجتماعية</td>
+          </tr>
+          <tr>
+            <td colspan="6" class="header-sub">جميع تبرعات الجمعية (سجل شامل)</td>
+          </tr>
+          <tr><td colspan="6"></td></tr> <!-- Spacer -->
+          
+          <!-- Column Headers -->
+          <thead>
+            <tr>
+              <th class="table-head">رقم العملية</th>
+              <th class="table-head">التاريخ</th>
+              <th class="table-head">الاسم الكامل</th>
+              <th class="table-head">المبلغ (درهم)</th>
+              <th class="table-head">طريقة الأداء</th>
+              <th class="table-head">الملاحظات</th>
+            </tr>
+          </thead>
+          
+          <!-- Data Rows -->
+          <tbody>
+    `;
+
+    // 2. Loop through data
+    filteredDonations.forEach((d, index) => {
+      const rowClass = index % 2 === 0 ? 'row-even' : 'row-odd';
+      
+      tableHTML += `
+        <tr class="${rowClass}">
+          <td class="cell">#${d.operationNumber}</td>
+          <td class="cell">${formatDate(d.date)}</td>
+          <td class="cell" style="font-weight:bold;">${d.donorName || t.guest}</td>
+          <td class="cell amount">${d.amount}</td>
+          <td class="cell">${d.paymentMethod} ${d.bankDetails ? `(${d.bankDetails})` : ''}</td>
+          <td class="cell">${d.description || '-'}</td>
+        </tr>
+      `;
+    });
+
+    tableHTML += `
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    // 3. Create Blob and Download
+    const blob = new Blob([tableHTML], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Basmat_Khair_Donations_${new Date().toISOString().slice(0,10)}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-full pb-24" dir={t.dir}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+             <ListIcon className="text-emerald-600" />
+             {t.history}
+          </h2>
+          <p className="text-slate-400 text-sm mt-1">{filteredDonations.length} {t.totalOps}</p>
+        </div>
+        
+        <div className="flex gap-2 w-full md:w-auto">
+          {/* SEARCH BAR */}
+          <div className="relative flex-1 md:w-80">
+            <Search className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-slate-400`} size={18} />
+            <input 
+              type="text" 
+              placeholder={t.searchPlaceholder}
+              className={`w-full ${t.dir === 'rtl' ? 'pr-11 pl-4' : 'pl-11 pr-4'} py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          {/* EXPORT BUTTON */}
+          <button 
+            onClick={handleExportExcel}
+            title={t.exportSheet}
+            className="px-4 py-3 bg-white border border-slate-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200 rounded-xl shadow-sm transition flex items-center gap-2 font-bold"
+          >
+            <FileSpreadsheet size={20} />
+            <span className="hidden sm:inline">{t.exportSheet?.split(' ')[0] || "Export"}</span>
+          </button>
+        </div>
+      </div>
+      
+      <div className="space-y-4">
+        {filteredDonations.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 shadow-sm">
+            <div className="mx-auto w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-4">
+              <Search size={32} />
+            </div>
+            <p className="text-slate-500 font-medium">{t.noData}</p>
+          </div>
+        ) : (
+          filteredDonations.map((d) => (
+            <div 
+              key={d.id} 
+              className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition group relative overflow-visible"
+            >
+              <div className={`absolute ${t.dir === 'rtl' ? 'right-0 rounded-l-full' : 'left-0 rounded-r-full'} top-6 bottom-6 w-1 ${
+                d.paymentMethod === 'Cash' ? 'bg-emerald-500' : 
+                d.paymentMethod === 'Bank Transfer' ? 'bg-blue-500' : 'bg-orange-500'
+              }`}></div>
+
+              <div className={`flex flex-col md:flex-row gap-4 items-start md:items-center justify-between ${t.dir === 'rtl' ? 'pr-4' : 'pl-4'}`}>
+                
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      #{d.operationNumber}
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
+                       <Calendar size={12} /> {formatDate(d.date)}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">{d.donorName || t.guest}</h3>
+                  <div className="flex items-center gap-4 text-sm text-slate-500">
+                    <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded text-xs">
+                      <User size={12} /> {d.memberName}
+                    </span>
+                    {d.paymentMethod === 'Bank Transfer' && d.bankDetails && (
+                       <span className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">
+                         <Banknote size={12} /> {d.bankDetails}
+                       </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end mt-4 md:mt-0">
+                  <div className="text-2xl font-black text-emerald-700 dir-ltr">
+                    {formatMoney(d.amount)}
+                  </div>
+                  
+                  <div className="relative">
+                    <button 
+                      onClick={(e) => toggleMenu(e, d.id)}
+                      className={`p-2 rounded-lg transition ${openMenu === d.id ? 'bg-slate-100 text-slate-900' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                    >
+                      <MoreVertical size={20} />
+                    </button>
+                    
+                    {openMenu === d.id && (
+                      <div className={`absolute ${t.dir === 'rtl' ? 'left-0 origin-top-left' : 'right-0 origin-top-right'} top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-20 py-1 animate-in fade-in zoom-in-95`}>
+                         <button 
+                           onClick={() => onAction('view', d)}
+                           className={`w-full ${t.dir === 'rtl' ? 'text-right' : 'text-left'} px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-emerald-700 flex items-center gap-3 font-medium transition`}
+                         >
+                           <Eye size={16} /> {t.viewReceipt}
+                         </button>
+                         <button 
+                           onClick={() => onAction('download', d)}
+                           className={`w-full ${t.dir === 'rtl' ? 'text-right' : 'text-left'} px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-emerald-700 flex items-center gap-3 font-medium transition`}
+                         >
+                           <Download size={16} /> {t.downloadPdf}
+                         </button>
+                         <button 
+                           onClick={() => onAction('print', d)}
+                           className={`w-full ${t.dir === 'rtl' ? 'text-right' : 'text-left'} px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-emerald-700 flex items-center gap-3 font-medium transition`}
+                         >
+                           <Printer size={16} /> {t.printReceipt}
+                         </button>
+                         {isAdmin && (
+                           <>
+                             <div className="h-px bg-slate-100 my-1"></div>
+                             <button 
+                               onClick={() => onDelete(d.id)}
+                               className={`w-full ${t.dir === 'rtl' ? 'text-right' : 'text-left'} px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 font-medium transition`}
+                             >
+                               <Trash2 size={16} /> {t.delete}
+                             </button>
+                           </>
+                         )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
+  const [formData, setFormData] = useState({
+    donorName: '',
+    phone: '',
+    amount: '',
+    method: 'Cash',
+    bankDetails: '',
+    description: ''
+  });
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleSubmit = (e) => {
     e.preventDefault();
+    const amountFloat = parseFloat(formData.amount);
+    if (!formData.amount || amountFloat <= 0 || isNaN(amountFloat)) return;
+    setShowConfirm(true);
+  };
+
+  const handleFinalConfirm = () => {
+    onAdd({
+      ...formData,
+      amount: parseFloat(formData.amount),
+      memberName: userDisplayName
+    }, (success) => {
+      if (success) {
+        setFormData({ donorName: '', phone: '', amount: '', method: 'Cash', bankDetails: '', description: '' });
+        setShowConfirm(false);
+      }
+    });
+  };
+
+  const currentDate = new Date().toLocaleDateString(t.dir === 'rtl' ? 'ar-MA' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  return (
+    <div className="max-w-3xl mx-auto p-4 md:p-8 animate-in slide-in-from-bottom-4 pb-24" dir={t.dir}>
+      
+      {showConfirm && (
+        <ConfirmationModal 
+          data={{...formData, memberName: userDisplayName}} 
+          onConfirm={handleFinalConfirm}
+          onCancel={() => setShowConfirm(false)}
+          t={t}
+        />
+      )}
+
+      <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+        <div className="p-8 bg-slate-900 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+          
+          <div className="relative z-10">
+             <h2 className="text-2xl font-bold flex items-center gap-3">
+               <div className="p-2 bg-emerald-600 rounded-xl"><Plus className="text-white" size={20} /></div>
+               {t.recordTitle}
+             </h2>
+             <p className="text-slate-400 text-sm mt-2 flex items-center gap-2">
+                <User size={14} /> {t.memberResponsable}: <span className="text-white font-bold">{userDisplayName}</span>
+             </p>
+          </div>
+          <div className="relative z-10 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl text-sm font-mono border border-white/10">
+            {currentDate}
+          </div>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-8">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">{t.donorName}</label>
+              <div className="relative group">
+                <div className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition`}>
+                   <User size={18} />
+                </div>
+                <input 
+                  type="text" required 
+                  className={`w-full ${t.dir === 'rtl' ? 'pr-12 pl-4' : 'pl-12 pr-4'} py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition font-medium`}
+                  value={formData.donorName}
+                  onChange={e => setFormData({...formData, donorName: e.target.value})}
+                  placeholder={t.donorName}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">{t.phone}</label>
+              <div className="relative group">
+                <div className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition`}>
+                   <Phone size={18} />
+                </div>
+                <input 
+                  type="tel" 
+                  className={`w-full ${t.dir === 'rtl' ? 'pr-12 pl-4 text-right' : 'pl-12 pr-4 text-left'} py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition font-medium dir-ltr`}
+                  value={formData.phone}
+                  onChange={e => setFormData({...formData, phone: e.target.value})}
+                  placeholder="06XXXXXXXX"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">{t.amount}</label>
+              <div className="relative group">
+                 <div className="absolute left-4 top-3.5 text-slate-400 font-bold text-xs bg-slate-200 px-2 py-0.5 rounded">MAD</div>
+                 <input 
+                  type="number" step="0.01" required 
+                  className="w-full px-4 py-3 bg-emerald-50/50 border border-emerald-100 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-black text-2xl text-emerald-800 dir-ltr text-right transition"
+                  value={formData.amount}
+                  onChange={e => setFormData({...formData, amount: e.target.value})}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">{t.method}</label>
+              <div className="relative">
+                <ChevronDown className={`absolute ${t.dir === 'rtl' ? 'left-4' : 'right-4'} top-4 text-slate-400 pointer-events-none`} size={16} />
+                <select 
+                  className={`w-full ${t.dir === 'rtl' ? 'pr-4 pl-10' : 'pl-4 pr-10'} py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none appearance-none font-medium cursor-pointer`}
+                  value={formData.method}
+                  onChange={e => setFormData({...formData, method: e.target.value})}
+                >
+                  <option value="Cash">{t.methods.cash}</option>
+                  <option value="Bank Transfer">{t.methods.transfer}</option>
+                  <option value="Check">{t.methods.check}</option>
+                  <option value="Other">{t.methods.other}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {formData.method === 'Bank Transfer' && (
+            <div className="animate-in fade-in slide-in-from-top-2 space-y-2">
+              <label className="text-sm font-bold text-blue-600">{t.bankDetails}</label>
+              <div className="relative group">
+                 <div className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-blue-400 group-focus-within:text-blue-600 transition`}>
+                    <CreditCard size={18} />
+                 </div>
+                 <input 
+                  type="text" required
+                  className={`w-full ${t.dir === 'rtl' ? 'pr-12 pl-4' : 'pl-12 pr-4'} py-3 bg-blue-50/30 border border-blue-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-blue-900 font-medium transition`}
+                  value={formData.bankDetails}
+                  onChange={e => setFormData({...formData, bankDetails: e.target.value})}
+                  placeholder={t.bankDetails}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700">{t.description}</label>
+            <textarea 
+              rows="3"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition"
+              value={formData.description}
+              onChange={e => setFormData({...formData, description: e.target.value})}
+              placeholder={t.description}
+            ></textarea>
+          </div>
+
+          <div className="pt-4">
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full py-4 rounded-xl font-bold text-white text-lg shadow-xl hover:shadow-2xl hover:bg-emerald-700 hover:-translate-y-1 transition-all duration-300 disabled:opacity-70 disabled:hover:translate-y-0"
+              style={{ backgroundColor: BRAND.main }}
+            >
+              {loading ? t.btnSaving : t.btnRecord}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// --- 6. MAIN APP SHELL ---
+
+export default function App() {
+  const [lang, setLang] = useState('ar');
+  const t = TRANSLATIONS[lang];
+  
+  const [userId, setUserId] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [view, setView] = useState('dashboard');
+  const [loading, setLoading] = useState(true);
+  const [donations, setDonations] = useState([]);
+  const [memberData, setMemberData] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // --- LOGIN FORM STATE ---
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSignIn = async () => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+      await setPersistence(auth, persistenceType);
+
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      setEmail('');
+      setPassword('');
+    } catch (err) {
+      console.error('Sign-in error:', err);
+      setErrorMsg(t.invalidCreds || 'Invalid credentials');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+
+  // Receipt State
+  const [receiptData, setReceiptData] = useState(null);
+  const [autoPrint, setAutoPrint] = useState(false);
+
+  const logoPath = 'https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/logo-basmat.png'; 
+
+  // --- Auth & Data Fetching ---
+  useEffect(() => {
+    document.title = t.appTitle;
+    document.documentElement.dir = t.dir;
+  }, [lang, t]);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        if (token) {
+          await signInWithCustomToken(auth, token);
+        } else {
+          setAuthReady(true);
+          setLoading(false);
+        }
+      } catch (err) {
+         console.error(err);
+         setAuthReady(true);
+         setLoading(false);
+      }
+    };
+    
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUserId(user ? user.uid : null);
+      setCurrentUser(user);
+      setAuthReady(true);
+      if(!user) {
+        setLoading(false);
+        setMemberData(null);
+      }
+    });
+
+    initAuth();
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (authReady && userId) {
+      setLoading(true);
+      const memberRef = doc(db, `artifacts/${appId}/public/data/members`, userId);
+      const unsubMember = onSnapshot(memberRef, (snap) => {
+         if (snap.exists()) {
+           setMemberData(snap.data());
+           setIsAdmin(snap.data().isAdmin || false);
+         } else {
+            setMemberData(null);
+         }
+         setLoading(false);
+       });
+
+      const q = query(collection(db, `artifacts/${appId}/public/data/donations`));
+      const unsubDonations = onSnapshot(q, (snap) => {
+        const list = snap.docs.map(d => ({ 
+          id: d.id, 
+          ...d.data(),
+          date: d.data().timestamp?.toDate ? d.data().timestamp.toDate() : d.data().timestamp
+        }));
+        list.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+        setDonations(list);
+      });
+      return () => { unsubMember(); unsubDonations(); };
+    }
+  }, [authReady, userId]);
+
+  const displayMemberName = useMemo(() => {
+    if (memberData && memberData.name) return memberData.name;
+    if (currentUser && currentUser.email) return currentUser.email.split('@')[0];
+    return t.guest;
+  }, [memberData, currentUser, t.guest]);
+
+  const handleAdd = async (data, callback) => {
     setLoading(true);
     try {
-      const donationData = {
-        ...formData,
-        amount: parseFloat(formData.amount),
-        date: formData.date, // Keep as date string for easy display
-      };
-      await onSave(donationData);
-      // Close form on success
-      onCancel();
-    } catch (error) {
-      console.error("Error saving donation:", error);
-      alert(`Error saving donation: ${error.message}`);
+      const nextOpNumber = donations.length > 0 ? Math.max(...donations.map(d=>d.operationNumber).filter(n => typeof n === 'number')) + 1 : 1; 
+      const newDoc = await addDoc(collection(db, `artifacts/${appId}/public/data/donations`), {
+        operationNumber: nextOpNumber,
+        donorName: data.donorName,
+        phone: data.phone,
+        amount: data.amount,
+        paymentMethod: data.method,
+        bankDetails: data.bankDetails || '',
+        description: data.description,
+        createdBy: userId,
+        memberName: data.memberName,
+        timestamp: serverTimestamp()
+      });
+      setView('list');
+      callback(true);
+    } catch (err) {
+      console.error(err);
+      callback(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const isEdit = !!initialData;
-
-  const paymentMethods = useMemo(() => ([
-    { value: 'Banknote', label: t.Banknote, icon: Banknote },
-    { value: 'CreditCard', label: t.CreditCard, icon: CreditCard },
-    { value: 'OnlineTransfer', label: t.OnlineTransfer, icon: FileText },
-  ]), [t]);
-
-  return (
-    <div dir={t.dir} className="w-full max-w-2xl bg-white p-6 md:p-8 rounded-xl shadow-2xl">
-      <h2 className="text-2xl font-bold mb-6 text-slate-800 border-b pb-2">
-        {isEdit ? t.editDonation : t.addDonation}
-      </h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">{t.donorName}</label>
-          <input
-            type="text"
-            name="donorName"
-            value={formData.donorName}
-            onChange={handleChange}
-            required
-            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 transition duration-150"
-            placeholder={t.donorName}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">{t.amount} ({t.currency})</label>
-          <input
-            type="number"
-            name="amount"
-            value={formData.amount}
-            onChange={handleChange}
-            required
-            min="0.01"
-            step="0.01"
-            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 transition duration-150"
-            placeholder="0.00"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">{t.paymentMethod}</label>
-          <div className="flex space-x-2 rtl:space-x-reverse">
-            {paymentMethods.map(method => (
-              <label key={method.value} className={`flex items-center p-3 border rounded-lg cursor-pointer transition duration-150 ${formData.paymentMethod === method.value ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-200' : 'bg-white border-slate-300 hover:bg-slate-50'}`}>
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value={method.value}
-                  checked={formData.paymentMethod === method.value}
-                  onChange={handleChange}
-                  className="hidden"
-                />
-                <method.icon size={20} className="text-emerald-600 rtl:ml-2 ltr:mr-2" />
-                <span className="text-sm font-medium text-slate-800">{method.label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">{t.date}</label>
-          <input
-            type="date"
-            name="date"
-            value={formData.date}
-            onChange={handleChange}
-            required
-            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 transition duration-150"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">{t.notes}</label>
-          <textarea
-            name="notes"
-            value={formData.notes}
-            onChange={handleChange}
-            rows="3"
-            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 transition duration-150"
-            placeholder={t.notes}
-          ></textarea>
-        </div>
-        <div className="flex justify-end space-x-3 rtl:space-x-reverse pt-4">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-6 py-3 border border-slate-300 rounded-xl text-slate-600 hover:bg-slate-50 transition duration-150 font-medium"
-            disabled={loading}
-          >
-            {t.Cancel}
-          </button>
-          <button
-            type="submit"
-            className="px-6 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition duration-150 font-semibold shadow-md shadow-emerald-200 flex items-center justify-center"
-            disabled={loading}
-          >
-            {loading ? <Loader size={20} className="animate-spin rtl:ml-2 ltr:mr-2" /> : isEdit ? t.saveChanges : t.Add}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-};
-
-// Minimalistic Arabic Receipt Content for PDF
-const ReceiptContent = React.forwardRef(({ data, t }, ref) => {
-  const date = data.date ? new Date(data.date) : new Date();
-  
-  // Format date in Arabic
-  const formattedDate = date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
-
-  return (
-    <div 
-      ref={ref} 
-      dir="rtl" 
-      className="w-[210mm] min-h-[297mm] p-8 mx-auto bg-white text-right text-gray-800 font-[Amiri, 'Noto Sans Arabic', 'Droid Arabic Kufi', sans-serif] border-4 border-emerald-600 rounded-lg"
-      style={{ fontSize: '12pt' }} // Explicit font size for PDF capture
-    >
-      <header className="text-center mb-10 border-b-2 pb-4 border-slate-200">
-        <h1 className="text-3xl font-bold mb-2 text-emerald-800">{t.receiptTitle}</h1>
-        <p className="text-xl text-slate-600">{t.societyName}</p>
-        <p className="text-sm text-slate-500 mt-1">وثيقة غير قابلة للتحويل</p>
-      </header>
-
-      <section className="space-y-8 mt-12">
-        {/* The required three elements with dotted lines for separation */}
-        <div className="flex flex-col">
-          <p className="text-xl font-medium text-slate-700 mb-2">الاسم الكامل :</p>
-          <p className="border-b border-dotted border-gray-400 pb-2 text-xl font-semibold text-slate-900">
-            {data.donorName || '......................................................................................................................................................................................'}
-          </p>
-        </div>
-
-        <div className="flex flex-col">
-          <p className="text-xl font-medium text-slate-700 mb-2">المبلغ المؤدى :</p>
-          <p className="border-b border-dotted border-gray-400 pb-2 text-xl font-semibold text-emerald-600">
-            {data.amount} {t.currency} {data.amount ? '' : '......................................................................................................................................................................................'}
-          </p>
-        </div>
-        
-        <div className="flex flex-col">
-          <p className="text-xl font-medium text-slate-700 mb-2">تاريخ الأداء :</p>
-          <p className="border-b border-dotted border-gray-400 pb-2 text-xl font-semibold text-slate-900">
-            {formattedDate || '......................................................................................................................................................................................'}
-          </p>
-        </div>
-      </section>
-
-      {/* Signatures */}
-      <footer className="mt-24 flex justify-between text-center text-lg font-medium">
-        <div className="w-1/3">
-          <p className="mb-2">{t.managerSignature}</p>
-          <p className="border-t border-slate-600 pt-1 text-base text-slate-500">
-            {data.user ? data.user.displayName : '........................'}
-          </p>
-        </div>
-        <div className="w-1/3">
-          <p className="mb-2">{t.donorSignature}</p>
-          <p className="border-t border-slate-600 pt-1 text-base text-slate-500">
-            {data.donorName || '........................'}
-          </p>
-        </div>
-      </footer>
-      
-      <div className="mt-16 text-center text-sm text-gray-500 border-t pt-4">
-        <p>
-          يرجى الاحتفاظ بهذا الإيصال كدليل على الدفع. رقم العملية: {data.id}
-        </p>
-      </div>
-    </div>
-  );
-});
-
-// Donation action buttons (View, Edit, Delete, PDF)
-const DonationActions = ({ donation, t, onAction, onDelete, onEdit, onReceiptDownload }) => {
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setShowMenu(false);
+  const handleDelete = async (id) => {
+    if(confirm(t.deleteConfirm)) { 
+      try {
+        await deleteDoc(doc(db, `artifacts/${appId}/public/data/donations`, id));
+      } catch (err) {
+        console.error(err);
       }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Function to handle PDF generation (Arabic Fix)
-  const handleDownloadReceiptPDF = async () => {
-    onReceiptDownload(donation);
-  };
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button 
-        className="p-2 rounded-full text-slate-500 hover:bg-slate-100 transition"
-        onClick={() => setShowMenu(!showMenu)}
-        aria-label="More actions"
-      >
-        <MoreVertical size={20} />
-      </button>
-
-      {showMenu && (
-        <div 
-          dir={t.dir}
-          className={`absolute ${t.dir === 'rtl' ? 'left-0' : 'right-0'} mt-2 w-48 bg-white rounded-xl shadow-2xl z-20 border border-slate-100 py-1`}
-        >
-          <MenuItem icon={Eye} label={t.viewDetails} onClick={() => { onAction(donation); setShowMenu(false); }} />
-          <MenuItem icon={Printer} label={t.receiptDownload} onClick={() => { handleDownloadReceiptPDF(); setShowMenu(false); }} />
-          <MenuItem icon={Pencil} label={t.editDonation} onClick={() => { onEdit(donation); setShowMenu(false); }} />
-          <MenuItem icon={Trash2} label={t.deleteDonation} onClick={() => { onDelete(donation); setShowMenu(false); }} highlight />
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Donation List Component
-const DonationsList = ({ t, donations, onAction, onDelete, onEdit, onReceiptDownload }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
-  
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
     }
-    setSortConfig({ key, direction });
   };
 
-  const sortedDonations = useMemo(() => {
-    let sortableItems = [...donations];
-    if (sortConfig.key) {
-      sortableItems.sort((a, b) => {
-        const key = sortConfig.key;
-        let aValue = a[key];
-        let bValue = b[key];
-
-        if (key === 'amount') {
-          aValue = parseFloat(aValue);
-          bValue = parseFloat(bValue);
-        } else if (key === 'date') {
-          aValue = new Date(aValue).getTime();
-          bValue = new Date(bValue).getTime();
-        }
-
-        if (aValue < bValue) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
+  const handleAction = (type, data) => {
+    if (type === 'delete') handleDelete(data.id);
+    if (type === 'view') {
+      setAutoPrint(false);
+      setReceiptData(data);
     }
-    return sortableItems;
-  }, [donations, sortConfig]);
-
-  const filteredDonations = useMemo(() => {
-    return sortedDonations.filter(d => 
-      d.donorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.paymentMethod.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.amount.toString().includes(searchTerm)
-    );
-  }, [sortedDonations, searchTerm]);
-
-  // --- SHEET EXPORT LOGIC (New/Modified) ---
-  const handleExportToSheet = () => {
-    if (!filteredDonations.length) {
-      alert("No data to export.");
-      return;
-    }
-
-    // 1. Prepare data rows with required Arabic headers
-    const dataForSheet = filteredDonations.map((d, index) => [
-      index + 1, // رقم العملية
-      new Date(d.date).toLocaleDateString('ar-EG'), // التاريخ
-      d.donorName, // الاسم الكامل
-      `${d.amount} ${t.currency}`, // المبلغ
-      t[d.paymentMethod], // طريقة الأداء
-      d.notes || '', // الملاحظات
-    ]);
-
-    // 2. Prepare the decorative header (Title/Logo placeholder)
-    const titleRow = [
-      '', // Empty column for spacing
-      '', // Empty column for spacing
-      '', // Empty column for spacing
-      `جميع تبرعات جمعية ${t.societyName.split(' ').slice(-2).join(' ')}`, // Focus on the unique name
-      '',
-      '',
-    ];
-
-    const logoRow = [
-      'Logo Placeholder', // Simple string placeholder for logo/icon
-      ...new Array(5).fill(''),
-    ]
-
-    // 3. Define the actual column headers
-    const headerRow = [
-      'رقم العملية',
-      'التاريخ',
-      'الاسم الكامل',
-      'المبلغ',
-      'طريقة الأداء',
-      'الملاحظات',
-    ];
-
-    // Combine all rows
-    const allRows = [
-      logoRow,
-      [''], // Space
-      titleRow,
-      [''], // Space
-      headerRow, 
-      ...dataForSheet
-    ];
-
-    // Convert array of arrays to CSV/TSV format (using Tab delimiter for better Arabic compatibility)
-    const tsvContent = convertArrayToCSV(allRows);
-    
-    // Create Blob and download
-    const blob = new Blob(["\ufeff", tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' }); // \ufeff is BOM for UTF-8 Excel support
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'Donations_Sheet_بصمة_خير.tsv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-  // --- END SHEET EXPORT LOGIC ---
-
-  return (
-    <div dir={t.dir} className="bg-white p-6 md:p-8 rounded-xl shadow-2xl">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4">
-        <h2 className="text-2xl font-bold text-slate-800 mb-4 md:mb-0">{t.navDonations}</h2>
-        <div className="flex space-x-2 rtl:space-x-reverse">
-          <button
-            onClick={handleExportToSheet}
-            className="flex items-center px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition font-medium text-sm"
-          >
-            <FileSpreadsheet size={18} className="rtl:ml-2 ltr:mr-2 text-emerald-600" />
-            {t.exportSheet}
-          </button>
-        </div>
-      </div>
-
-      <div className="mb-6 flex flex-col sm:flex-row justify-between items-center">
-        <div className="relative w-full sm:w-80 mb-4 sm:mb-0">
-          <Search size={18} className="absolute top-1/2 -translate-y-1/2 rtl:right-3 ltr:left-3 text-slate-400" />
-          <input
-            type="text"
-            placeholder="بحث بالاسم أو المبلغ..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full p-3 pl-10 pr-4 border border-slate-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 transition duration-150"
-            style={{ paddingLeft: t.dir === 'rtl' ? '1rem' : '2.5rem', paddingRight: t.dir === 'rtl' ? '2.5rem' : '1rem' }}
-          />
-        </div>
-        <p className="text-sm text-slate-500">
-          {filteredDonations.length} {t.donationCount}
-        </p>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200">
-          <thead>
-            <tr>
-              <TableHeader t={t} label={t.date} sortKey="date" sortConfig={sortConfig} onSort={handleSort} />
-              <TableHeader t={t} label={t.donorName} sortKey="donorName" sortConfig={sortConfig} onSort={handleSort} />
-              <TableHeader t={t} label={t.amount} sortKey="amount" sortConfig={sortConfig} onSort={handleSort} />
-              <TableHeader t={t} label={t.paymentMethod} sortKey="paymentMethod" sortConfig={sortConfig} onSort={handleSort} />
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-16"></th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-slate-100">
-            {filteredDonations.length > 0 ? (
-              filteredDonations.map((donation) => (
-                <tr key={donation.id} className="hover:bg-slate-50 transition duration-150">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {new Date(donation.date).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                    {donation.donorName}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-600 font-semibold">
-                    {donation.amount} {t.currency}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                    {t[donation.paymentMethod]}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <DonationActions 
-                      donation={donation} 
-                      t={t} 
-                      onAction={onAction} 
-                      onDelete={onDelete} 
-                      onEdit={onEdit}
-                      onReceiptDownload={onReceiptDownload}
-                    />
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="px-6 py-12 text-center text-slate-500 text-lg">
-                  {t.noDonations}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-const TableHeader = ({ t, label, sortKey, sortConfig, onSort }) => {
-  const isSorted = sortConfig.key === sortKey;
-  const isAsc = sortConfig.direction === 'asc';
-  
-  return (
-    <th 
-      scope="col" 
-      className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-50 transition"
-      onClick={() => onSort(sortKey)}
-    >
-      <div className="flex items-center">
-        {label}
-        {isSorted && (
-          <ChevronDown 
-            size={16} 
-            className={`rtl:mr-1 ltr:ml-1 transition-transform ${isAsc ? 'rotate-180' : 'rotate-0'}`} 
-          />
-        )}
-      </div>
-    </th>
-  );
-};
-
-// --- Modal Component (Generic) ---
-const Modal = ({ children, onClose, title, t }) => (
-  <div className="fixed inset-0 bg-slate-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-    <div dir={t.dir} className="relative max-h-[90vh] overflow-y-auto">
-      {children}
-      <button 
-        onClick={onClose}
-        className={`absolute top-4 ${t.dir === 'rtl' ? 'left-4' : 'right-4'} p-2 bg-white rounded-full shadow-lg text-slate-600 hover:bg-slate-50 transition`}
-        aria-label={t.Cancel}
-      >
-        <X size={24} />
-      </button>
-    </div>
-  </div>
-);
-
-// --- Confirmation Dialog ---
-const ConfirmationDialog = ({ t, onConfirm, onCancel, message }) => (
-  <div dir={t.dir} className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm text-center">
-    <AlertTriangle size={36} className="text-red-500 mx-auto mb-4" />
-    <p className="text-lg font-medium text-slate-800 mb-6">{message}</p>
-    <div className="flex justify-center space-x-3 rtl:space-x-reverse">
-      <button
-        onClick={onCancel}
-        className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition font-medium"
-      >
-        {t.Cancel}
-      </button>
-      <button
-        onClick={onConfirm}
-        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold"
-      >
-        {t.deleteDonation}
-      </button>
-    </div>
-  </div>
-);
-
-// --- Dashboard Component ---
-const Dashboard = ({ t, donations }) => {
-  const totalAmount = donations.reduce((sum, d) => sum + parseFloat(d.amount), 0).toFixed(2);
-  const totalCount = donations.length;
-  const latest = [...donations].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
-
-  return (
-    <div dir={t.dir} className="space-y-8">
-      <h2 className="text-3xl font-bold text-slate-800 border-b pb-2">{t.dashboardTitle}</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <StatCard 
-          t={t}
-          icon={Coins} 
-          label={t.totalAmount} 
-          value={`${totalAmount} ${t.currency}`} 
-          color="bg-emerald-100 text-emerald-800"
-        />
-        <StatCard 
-          t={t}
-          icon={ListIcon} 
-          label={t.donationCount} 
-          value={totalCount} 
-          color="bg-indigo-100 text-indigo-800"
-        />
-      </div>
-
-      <div className="bg-white p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-semibold mb-4 text-slate-800 border-b pb-2">{t.latestDonations}</h3>
-        {latest.length > 0 ? (
-          <ul className="divide-y divide-slate-100">
-            {latest.map((d) => (
-              <li key={d.id} className="flex justify-between items-center py-3">
-                <div className="text-slate-700">
-                  <p className="font-medium">{d.donorName}</p>
-                  <p className="text-sm text-slate-500">
-                    {t[d.paymentMethod]} - {new Date(d.date).toLocaleDateString()}
-                  </p>
-                </div>
-                <p className="text-lg font-bold text-emerald-600">
-                  {d.amount} {t.currency}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-slate-500">{t.noDonations}</p>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const StatCard = ({ t, icon: Icon, label, value, color }) => (
-  <div className={`p-6 rounded-xl shadow-lg flex items-center justify-between ${color}`}>
-    <div>
-      <p className="text-sm font-medium mb-1">{label}</p>
-      <p className="text-3xl font-bold">{value}</p>
-    </div>
-    <Icon size={40} className="opacity-50" />
-  </div>
-);
-
-// --- Settings Component ---
-const Settings = ({ t, lang, setLang, userId }) => {
-  
-  const handleLangChange = (e) => {
-    setLang(e.target.value);
-  };
-
-  return (
-    <div dir={t.dir} className="bg-white p-6 md:p-8 rounded-xl shadow-2xl w-full max-w-4xl">
-      <h2 className="text-3xl font-bold text-slate-800 border-b pb-2 mb-6">{t.settingsTitle}</h2>
-      
-      <div className="space-y-6">
-        <div className="p-4 border border-slate-200 rounded-xl bg-slate-50">
-          <label htmlFor="language" className="block text-lg font-medium text-slate-700 mb-2 flex items-center">
-            <Languages size={20} className="rtl:ml-2 ltr:mr-2 text-indigo-500" />
-            {t.selectLanguage}
-          </label>
-          <select
-            id="language"
-            value={lang}
-            onChange={handleLangChange}
-            className="w-full sm:w-1/2 p-3 border border-slate-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 transition duration-150 bg-white"
-          >
-            <option value="en">{t.languageEnglish}</option>
-            <option value="ar">{t.languageArabic}</option>
-          </select>
-        </div>
-
-        <div className="p-4 border border-slate-200 rounded-xl bg-slate-50">
-          <label className="block text-lg font-medium text-slate-700 mb-2 flex items-center">
-            <User size={20} className="rtl:ml-2 ltr:mr-2 text-blue-500" />
-            {t.userId}
-          </label>
-          <p className="font-mono text-sm break-all bg-slate-100 p-3 rounded-lg text-slate-800 select-all">
-            {userId || 'N/A (Signing in...)'}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">
-            {t.dir === 'rtl' 
-              ? 'هذا هو معرّف المستخدم الخاص بك لتخزين البيانات. يجب مشاركته للتعاون.'
-              : 'This is your unique user ID for data storage. It should be shared for collaboration.'
-            }
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- MAIN APP COMPONENT ---
-export default function App() {
-  const [lang, setLang] = useState('ar'); // Default to Arabic as per user request
-  const t = translations[lang];
-
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [donations, setDonations] = useState([]);
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'donations', 'settings', 'add'
-  const [modalContent, setModalContent] = useState(null);
-  const [isProcessingPDF, setIsProcessingPDF] = useState(false);
-
-  const userId = currentUser?.uid;
-  const receiptRef = useRef(null);
-
-  // --- Core Firebase Initialization & Auth ---
-  useEffect(() => {
-    if (!auth) return;
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setCurrentUser(user);
-        setIsAuthenticated(true);
-      } else {
-        // Fallback for environments where initialAuthToken might be unavailable
-        if (initialAuthToken) {
-           await signInWithCustomToken(auth, initialAuthToken).catch(e => {
-            console.error("Custom token sign in failed, signing anonymously:", e);
-            signInAnonymously(auth);
-          });
-        } else {
-          signInAnonymously(auth);
-        }
+    if (type === 'print' || type === 'download') {
+      setAutoPrint(type === 'print');
+      setReceiptData(data);
+      if(type === 'download') {
+         // The modal itself handles the download button now
       }
-      setIsAuthReady(true);
-    });
-
-    // Initial sign-in attempt if not started by onAuthStateChanged listener
-    if (!currentUser && !isAuthReady) {
-        if (initialAuthToken) {
-           signInWithCustomToken(auth, initialAuthToken).catch(e => {
-            console.error("Custom token sign in failed, signing anonymously:", e);
-            signInAnonymously(auth);
-          });
-        } else {
-          signInAnonymously(auth);
-        }
-    }
-
-    return () => unsubscribe();
-  }, [initialAuthToken]);
-
-  // --- Firestore Data Listener ---
-  useEffect(() => {
-    if (!db || !isAuthReady || !userId) {
-      if(isAuthReady && !userId) {
-        console.warn("Auth ready but no userId. This might indicate an issue with anonymous sign-in or environment setup.");
-      }
-      return;
-    }
-
-    // Public data collection path: /artifacts/{appId}/public/data/donations
-    const donationsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'donations');
-    
-    // Sort by creation time (serverTimestamp)
-    const q = query(donationsCollectionRef, orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const donationList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        // Convert Firebase Timestamp to JS Date string if it exists
-        date: doc.data().date instanceof Object && doc.data().date.toDate ? doc.data().date.toDate().toISOString().substring(0, 10) : doc.data().date,
-      }));
-      setDonations(donationList);
-    }, (error) => {
-      console.error("Error fetching donations:", error);
-    });
-
-    return () => unsubscribe();
-  }, [db, isAuthReady, userId]);
-
-  // --- CRUD Operations ---
-
-  const handleAddDonation = async (donationData) => {
-    if (!db || !userId) return;
-
-    const donationsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'donations');
-    
-    const donationToSave = {
-      ...donationData,
-      createdAt: serverTimestamp(),
-      createdBy: userId,
-      user: {
-        uid: currentUser.uid,
-        displayName: currentUser.displayName || currentUser.email || 'Anonymous User',
-      }
-    };
-
-    await addDoc(donationsCollectionRef, donationToSave);
-  };
-
-  const handleUpdateDonation = async (id, updatedData) => {
-    if (!db || !userId) return;
-
-    const donationDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'donations', id);
-    
-    const dataToUpdate = {
-      ...updatedData,
-      updatedAt: serverTimestamp(),
-    };
-
-    await updateDoc(donationDocRef, dataToUpdate);
-  };
-
-  const handleDeleteDonation = async (id) => {
-    if (!db || !userId) return;
-
-    const donationDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'donations', id);
-    await deleteDoc(donationDocRef);
-    setModalContent(null); // Close modal after successful delete
-  };
-
-  // --- Modal and Action Handlers ---
-
-  const handleShowAddForm = () => {
-    setModalContent(
-      <DonationForm 
-        t={t} 
-        onSave={handleAddDonation} 
-        onCancel={() => setModalContent(null)} 
-        initialData={null}
-      />
-    );
-  };
-
-  const handleShowEditForm = (donation) => {
-    setModalContent(
-      <DonationForm 
-        t={t} 
-        onSave={(data) => handleUpdateDonation(donation.id, data)} 
-        onCancel={() => setModalContent(null)} 
-        initialData={donation}
-      />
-    );
-  };
-
-  const handleShowDeleteConfirm = (donation) => {
-    setModalContent(
-      <ConfirmationDialog
-        t={t}
-        message={t.confirmDelete}
-        onConfirm={() => handleDeleteDonation(donation.id)}
-        onCancel={() => setModalContent(null)}
-      />
-    );
-  };
-
-  // --- PDF Generation Handler (Modified for Arabic Fix) ---
-  const handleDownloadReceiptPDF = useCallback(async (donation) => {
-    if (isProcessingPDF) return;
-    setIsProcessingPDF(true);
-
-    try {
-      // 1. Render the ReceiptContent component in a hidden div
-      const element = receiptRef.current;
-      if (!element) throw new Error("Receipt content element not found.");
-
-      // 2. Use html2canvas to capture the HTML structure (best for RTL layout)
-      const canvas = await html2canvas(element, { 
-        scale: 2, // High resolution capture
-        useCORS: true 
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg');
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
-      const imgHeight = canvas.height * imgWidth / canvas.width;
-      let heightLeft = imgHeight;
-
-      // 3. Initialize jsPDF
-      const doc = new jsPDF('p', 'mm', 'a4', true);
-      
-      // ******* ARABIC FONT/RTL FIX ATTEMPT *******
-      // Although we are capturing an image (which bypasses jspdf font issues), 
-      // adding a minimal font config can sometimes stabilize the output in jspdf environments.
-      // We will skip actual Base64 embedding due to file size constraints, but keep the RTL flag.
-      doc.setRTL(true); 
-
-      let position = 0;
-
-      // 4. Add the image to the PDF
-      doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        doc.addPage();
-        doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      doc.save(`Receipt-${donation.id}.pdf`);
-
-    } catch (error) {
-      console.error("PDF generation failed:", error);
-      // Use a custom message box instead of alert
-      setModalContent(
-        <div dir={t.dir} className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm text-center">
-            <AlertTriangle size={36} className="text-red-500 mx-auto mb-4" />
-            <p className="text-lg font-medium text-slate-800 mb-6">
-              {t.dir === 'rtl' ? 'فشل توليد الإيصال. يرجى التأكد من أن جميع الحقول مملوءة.' : 'Receipt generation failed. Please ensure all fields are filled.'}
-            </p>
-            <button onClick={() => setModalContent(null)} className="px-4 py-2 bg-slate-600 text-white rounded-lg">
-              {t.Cancel}
-            </button>
-        </div>
-      );
-    } finally {
-      setIsProcessingPDF(false);
-    }
-  }, [t, isProcessingPDF]);
-
-  // --- Main Render ---
-
-  const renderContent = () => {
-    if (!isAuthReady) {
-      return <LoadingScreen t={t} />;
-    }
-
-    switch (view) {
-      case 'dashboard':
-        return <Dashboard t={t} donations={donations} />;
-      case 'donations':
-        return (
-          <DonationsList 
-            t={t} 
-            donations={donations} 
-            onAction={() => {}} // Placeholder for future detail view
-            onDelete={handleShowDeleteConfirm}
-            onEdit={handleShowEditForm}
-            onReceiptDownload={handleDownloadReceiptPDF}
-          />
-        );
-      case 'settings':
-        return <Settings t={t} lang={lang} setLang={setLang} userId={userId} />;
-      default:
-        return <Dashboard t={t} donations={donations} />;
     }
   };
 
-  return (
-    <div dir={t.dir} className="min-h-screen bg-slate-50 flex font-sans">
-      
-      {/* Hidden Receipt Component for PDF generation */}
-      <div style={{ position: 'absolute', left: '-9999px', top: '0', zIndex: -10 }}>
-        {modalContent && modalContent.type === ReceiptContent ? (
-          // This ensures the correct data is used when the PDF is generated
-          <ReceiptContent ref={receiptRef} data={modalContent.props.data} t={t} />
-        ) : (
-          // Render a blank/default receipt for structure consistency when no action is active
-          <ReceiptContent ref={receiptRef} data={{}} t={t} />
-        )}
-      </div>
+  // --- LOGIN SCREEN (If not logged in) ---
+  if (!userId) {
+     return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 overflow-hidden relative" dir={t.dir}>
+         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-600/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
+         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2"></div>
 
-      <Sidebar 
-        t={t} 
-        view={view} 
-        setView={setView} 
-        currentUser={currentUser} 
-        onSignOut={() => signOut(auth)}
-      />
-      
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-        <Header 
-          t={t} 
-          onAddDonation={handleShowAddForm} 
-          currentUser={currentUser}
-        />
-        <div className="mt-8">
-          {renderContent()}
-        </div>
-      </main>
+         <div className="relative z-10 bg-white/5 backdrop-blur-xl border border-white/10 p-12 rounded-3xl text-center max-w-md w-full shadow-2xl">
+            <div className="w-24 h-24 bg-white rounded-full mx-auto mb-8 flex items-center justify-center shadow-lg shadow-emerald-900/50 overflow-hidden">
+               <img src={logoPath} alt="Logo" className="w-20 h-20 object-contain" />
+            </div>
 
-      {modalContent && (
-        <Modal onClose={() => setModalContent(null)} t={t}>
-          {modalContent}
-        </Modal>
-      )}
-      
-      {/* Global loading indicator for PDF processing */}
-      {isProcessingPDF && (
-        <div className="fixed inset-0 bg-slate-900 bg-opacity-75 flex items-center justify-center z-[60]">
-          <div className="flex flex-col items-center bg-white p-8 rounded-xl shadow-2xl">
-            <Loader size={48} className="animate-spin text-emerald-500 mb-4" />
-            <p className="text-lg font-semibold text-slate-800">
-              {t.dir === 'rtl' ? 'جاري تجهيز الإيصال...' : 'Preparing Receipt...'}
-            </p>
-          </div>
-        </div>
-      )}
+            <h1 className="text-3xl font-bold text-white mb-2">{t.appTitle}</h1>
+            <p className="text-emerald-200/80 mb-8 font-light">{t.loginSub}</p>
 
-    </div>
-  );
-}
+            <div className="space-y-4">
 
-// --- Loading Screen Component ---
-const LoadingScreen = ({ t }) => (
-  <div className="fixed inset-0 bg-white flex items-center justify-center flex-col z-50">
-    <Loader size={64} className="animate-spin text-emerald-500 mb-4" />
-    <p className="text-xl font-semibold text-slate-800">
-      {t.dir === 'rtl' ? 'جارٍ تحميل النظام...' : 'Loading System...'}
-    </p>
-    <p className="text-sm text-slate-500 mt-2">
-      {t.dir === 'rtl' ? 'الرجاء الانتظار...' : 'Please wait...'}
-    </p>
-  </div>
-);
-
-// --- Navigation Components ---
-
-const Sidebar = ({ t, view, setView, currentUser, onSignOut }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const navItems = [
-    { key: 'dashboard', label: t.navDashboard, icon: LayoutDashboard },
-    { key: 'donations', label: t.navDonations, icon: ListIcon },
-    { key: 'settings', label: t.navSettings, icon: Shield },
-  ];
-
-  const signOutHandler = () => {
-    setIsOpen(false);
-    onSignOut();
-  };
-
-  return (
-    <>
-      {/* Mobile Menu Button */}
-      <button 
-        className="fixed top-4 rtl:right-4 ltr:left-4 z-50 p-2 bg-white rounded-xl shadow-lg md:hidden text-slate-700"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label="Toggle navigation menu"
-      >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
-      {/* Backdrop */}
-      {isOpen && <div className="fixed inset-0 bg-slate-900 bg-opacity-50 z-40 md:hidden" onClick={() => setIsOpen(false)}></div>}
-
-      {/* Sidebar (Desktop and Mobile) */}
-      <nav 
-        dir={t.dir}
-        className={`fixed inset-y-0 ${t.dir === 'rtl' ? 'right-0' : 'left-0'} w-64 bg-white p-4 shadow-xl z-50 transform md:relative md:translate-x-0 transition-transform duration-300 ${isOpen ? 'translate-x-0' : (t.dir === 'rtl' ? 'translate-x-full' : '-translate-x-full')}`}
-      >
-        <div className="flex flex-col h-full">
-          <div className="flex items-center justify-center p-2 mb-8 border-b pb-4">
-            <Receipt size={30} className="text-emerald-500 rtl:ml-3 ltr:mr-3" />
-            <span className="text-xl font-extrabold text-slate-800">{t.appTitle}</span>
-          </div>
-          
-          <div className="flex-grow space-y-2">
-            {navItems.map(item => (
-              <NavItem
-                key={item.key}
-                t={t}
-                active={view === item.key}
-                onClick={() => { setView(item.key); setIsOpen(false); }}
-                icon={item.icon}
-                label={item.label}
+              <input
+                type="email"
+                placeholder={t.email || 'Email'}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:ring-2 focus:ring-emerald-500 outline-none"
               />
-            ))}
-          </div>
 
-          <div className="mt-8 pt-4 border-t border-slate-100 space-y-2">
-            <div className="p-3 bg-slate-50 rounded-xl flex items-center text-sm">
-              <User size={20} className="text-slate-500 rtl:ml-3 ltr:mr-3" />
-              <div className="truncate">
-                <p className="font-semibold text-slate-800">{currentUser?.displayName || currentUser?.email || 'Guest User'}</p>
+              <input
+                type="password"
+                placeholder={t.password || 'Password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+
+              <div className="flex items-center gap-3 px-2">
+                 <input 
+                   type="checkbox" 
+                   id="rememberMe"
+                   checked={rememberMe}
+                   onChange={(e) => setRememberMe(e.target.checked)}
+                   className="w-4 h-4 rounded border-white/20 bg-white/10 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                 />
+                 <label htmlFor="rememberMe" className="text-sm text-emerald-100/80 font-medium cursor-pointer select-none">
+                   {t.rememberMe}
+                 </label>
+              </div>
+
+              {errorMsg && (
+                <div className="text-red-300 text-sm font-medium">{errorMsg}</div>
+              )}
+
+              <button 
+                onClick={handleSignIn}
+                disabled={loading}
+                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-emerald-500/20 transition flex items-center justify-center gap-3"
+              >
+                {loading ? (
+                   <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent"></div>
+                ) : (
+                   <>
+                     <LogIn size={20} />
+                     {t.btnEnter}
+                   </>
+                )}
+              </button>
+
+              <div className="pt-6 border-t border-white/10 flex justify-center">
+                 <div className="w-40">
+                   <LanguageSelector 
+                      currentLang={lang} 
+                      setLang={setLang} 
+                      t={t} 
+                      isOpen={isLangMenuOpen} 
+                      setIsOpen={setIsLangMenuOpen} 
+                      up={true}
+                   />
+                 </div>
               </div>
             </div>
-            <NavItem 
-              t={t}
-              active={false}
-              onClick={signOutHandler}
-              icon={LogOut}
-              label={t.signOut}
-              highlight
-            />
+         </div>
+      </div>
+     );
+  }
+
+  // --- LOGGED IN APP ---
+  return (
+    <div className={`min-h-screen bg-slate-50 flex font-sans text-slate-800 selection:bg-emerald-100 selection:text-emerald-900`} dir={t.dir}>
+      
+      {loading && <Preloader />}
+
+      {receiptData && (
+        <ReceiptModal 
+          donation={receiptData} 
+          onClose={() => setReceiptData(null)} 
+          logoPath={logoPath}
+          autoPrint={autoPrint}
+          t={t}
+          lang={lang}
+        />
+      )}
+
+      {/* Sidebar (Desktop) */}
+      <aside className={`hidden md:flex flex-col w-80 bg-white shadow-2xl z-30 sticky top-0 h-screen border-${t.dir === 'rtl' ? 'l' : 'r'} border-slate-100 print:hidden`}>
+        <div className="p-10 flex flex-col items-center border-b border-slate-50 relative overflow-hidden">
+          <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-800`}></div>
+          <div className="w-24 h-24 mb-6 bg-white rounded-full p-2 shadow-lg border border-slate-100 flex items-center justify-center">
+             <img src={logoPath} alt="Logo" className="w-full h-full object-contain" />
           </div>
+          <h1 className="text-2xl font-black text-center text-slate-900 leading-none">{t.appTitle}</h1>
+          <p className="text-xs text-slate-400 mt-2 font-medium tracking-wide text-center">{t.subTitle}</p>
         </div>
-      </nav>
-    </>
+
+        <nav className="flex-1 p-6 space-y-3 overflow-y-auto">
+          <NavItem active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={LayoutDashboard} label={t.dashboard} t={t} />
+          <NavItem active={view === 'add'} onClick={() => setView('add')} icon={Plus} label={t.add} highlight t={t} />
+          <NavItem active={view === 'list'} onClick={() => setView('list')} icon={ListIcon} label={t.history} t={t} />
+        </nav>
+
+        <div className="p-6 bg-slate-50 m-6 rounded-2xl border border-slate-100 shadow-inner space-y-4">
+           
+           <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+             <LanguageSelector 
+               currentLang={lang} 
+               setLang={setLang} 
+               t={t} 
+               isOpen={isLangMenuOpen} 
+               setIsOpen={setIsLangMenuOpen} 
+               up={true}
+             />
+           </div>
+
+           <div className="flex items-center gap-4 px-2">
+             <div className="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-lg shadow-lg bg-gradient-to-br from-emerald-600 to-emerald-800 ring-2 ring-white">
+               {displayMemberName.charAt(0).toUpperCase()}
+             </div>
+             <div className="overflow-hidden">
+               <p className="text-sm font-bold text-slate-900 truncate">{displayMemberName}</p>
+               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold mt-1">
+                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></div>
+                 {isAdmin ? t.roleAdmin : t.roleMember}
+               </span>
+             </div>
+           </div>
+           
+           <button onClick={() => signOut(auth)} className="flex items-center justify-center gap-2 text-slate-500 hover:text-red-600 text-sm font-bold w-full py-3 bg-white hover:bg-red-50 rounded-xl transition shadow-sm border border-slate-100">
+             <LogOut size={16} /> {t.signOut}
+           </button>
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md z-40 px-4 py-3 shadow-sm border-b border-slate-100 flex justify-between items-center print:hidden">
+        <div className="flex items-center gap-2">
+           <img src={logoPath} className="w-8 h-8 object-contain" />
+           <h1 className="font-bold text-slate-800">{t.appTitle}</h1>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 bg-slate-100 rounded-lg text-slate-600 hover:bg-slate-200 transition">
+          <Menu size={24} />
+        </button>
+      </div>
+
+      {/* Main Content */}
+      <main className="flex-1 h-screen overflow-y-auto print:h-auto print:overflow-visible pt-20 md:pt-0 scroll-smooth">
+         {/* Mobile Menu Overlay */}
+        {isMobileMenuOpen && (
+          <div className={`fixed inset-0 z-50 flex ${t.dir === 'rtl' ? 'justify-end' : 'justify-start'}`}>
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+            <div className={`relative w-72 h-full bg-white shadow-2xl flex flex-col p-6 animate-in ${t.dir === 'rtl' ? 'slide-in-from-right' : 'slide-in-from-left'}`}>
+               <div className="flex justify-between items-center mb-8 border-b border-slate-100 pb-4">
+                 <span className="font-bold text-lg text-slate-800">{t.appTitle}</span>
+                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-slate-100 text-slate-500 rounded-lg"><X size={20} /></button>
+               </div>
+               
+               <div className="mb-6">
+                 <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">{t.selectLang}</label>
+                 <div className="flex gap-2">
+                   {Object.keys(TRANSLATIONS).map(l => (
+                     <button 
+                       key={l}
+                       onClick={() => setLang(l)} 
+                       className={`flex-1 py-2 rounded-lg text-sm font-bold border ${lang === l ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                     >
+                       {l.toUpperCase()}
+                     </button>
+                   ))}
+                 </div>
+               </div>
+
+               <nav className="space-y-2 flex-1">
+                <MobileNavItem onClick={() => { setView('dashboard'); setIsMobileMenuOpen(false); }} label={t.dashboard} icon={LayoutDashboard} active={view === 'dashboard'} t={t} />
+                <MobileNavItem onClick={() => { setView('add'); setIsMobileMenuOpen(false); }} label={t.add} icon={Plus} active={view === 'add'} t={t} />
+                <MobileNavItem onClick={() => { setView('list'); setIsMobileMenuOpen(false); }} label={t.history} icon={ListIcon} active={view === 'list'} t={t} />
+              </nav>
+
+              <button onClick={() => signOut(auth)} className="flex items-center gap-2 text-red-500 font-bold mt-4 p-4 bg-red-50 rounded-xl">
+                <LogOut size={18} /> {t.signOut}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {view === 'dashboard' && <Dashboard donations={donations} t={t} />}
+        {view === 'add' && <AddDonation onAdd={handleAdd} loading={loading} t={t} userDisplayName={displayMemberName} />}
+        {view === 'list' && <DonationList donations={donations} t={t} userId={userId} isAdmin={isAdmin} onDelete={handleDelete} onAction={handleAction} />}
+      </main>
+    </div>
   );
-};
+}
+
+// --- Navigation Components ---
 
 const NavItem = ({ active, onClick, icon: Icon, label, highlight, t }) => (
   <button
     onClick={onClick}
-    className={`flex items-center w-full p-4 rounded-xl transition-all duration-300 group relative overflow-hidden text-sm 
-    ${active 
+    className={`flex items-center w-full p-4 rounded-xl transition-all duration-300 group relative overflow-hidden ${
+      active 
         ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' 
         : highlight 
-          ? 'bg-red-50 text-red-800 hover:bg-red-100 hover:shadow-md'
+          ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:shadow-md'
           : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
     } ${active ? 'font-bold' : 'font-medium'}`}
   >
-    <Icon size={20} className={`${active ? 'text-emerald-400' : highlight ? 'text-red-600' : 'text-slate-400 group-hover:text-slate-600'} ${t.dir === 'rtl' ? 'ml-3' : 'mr-3'} transition-colors`} />
-    <span>{label}</span>
+    <Icon size={22} className={`${active ? 'text-emerald-400' : highlight ? 'text-emerald-600' : 'text-slate-400 group-hover:text-slate-600'} ${t.dir === 'rtl' ? 'ml-4' : 'mr-4'} transition-colors`} />
+    <span className="text-base">{label}</span>
     {active && <div className={`absolute ${t.dir === 'rtl' ? 'right-0 rounded-l-full' : 'left-0 rounded-r-full'} top-1/2 -translate-y-1/2 h-8 w-1 bg-emerald-500`}></div>}
   </button>
 );
 
-const Header = ({ t, onAddDonation }) => (
-  <header dir={t.dir} className="flex justify-end mb-4">
-    <button
-      onClick={onAddDonation}
-      className="flex items-center px-6 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition duration-150 font-semibold shadow-md shadow-emerald-300 text-sm"
-    >
-      <Plus size={20} className="rtl:ml-2 ltr:mr-2" />
-      {t.addDonation}
-    </button>
-  </header>
+const MobileNavItem = ({ onClick, label, active, icon: Icon, t }) => (
+  <button 
+    onClick={onClick} 
+    className={`w-full flex items-center gap-4 ${t.dir === 'rtl' ? 'text-right' : 'text-left'} p-4 rounded-xl text-lg font-bold transition ${active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+  >
+    <Icon size={20} className={active ? 'text-emerald-400' : 'text-slate-400'} />
+    {label}
+  </button>
 );
