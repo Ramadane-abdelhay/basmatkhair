@@ -392,8 +392,14 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
 };
 
 
-const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t = {}, lang = "fr" }) => {
-
+const ReceiptModal = ({
+  donation,
+  onClose,
+  logoPath,
+  autoPrint = false,
+  t = {},
+  lang = "fr",
+}) => {
   const signatureUrl =
     "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
 
@@ -411,39 +417,41 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t = {}, 
   const handlePrint = () => window.print();
 
   const downloadPDF = async () => {
-  const element = printAreaRef.current;
-  if (!element) return;
+    const element = printAreaRef.current;
+    if (!element) return;
 
-  try {
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pdfWidthMM = pdf.internal.pageSize.getWidth();
-    const pdfHeightMM = pdf.internal.pageSize.getHeight();
+    try {
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidthMM = pdf.internal.pageSize.getWidth();
+      const pdfHeightMM = pdf.internal.pageSize.getHeight();
 
-    // FIX for mobile cropping + correct scaling
-    const canvas = await html2canvas(element, {
-      scale: 2,                     // keep good quality
-      useCORS: true,
-      backgroundColor: "#ffffff",
-      logging: false,
-      width: element.offsetWidth,   // force correct capture size
-      height: element.offsetHeight,
-      windowWidth: element.scrollWidth,     // prevent mobile shrinking
-      windowHeight: element.scrollHeight,
-    });
+      // Always use full A4 size regardless of device
+      const mmToPx = 3.78; // 1mm ≈ 3.78px at 96dpi
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#fff",
+        width: 210 * mmToPx,
+        height: 297 * mmToPx,
+        logging: false,
+      });
 
-    const imgData = canvas.toDataURL("image/png", 1.0);
+      const imgData = canvas.toDataURL("image/png", 1.0);
+      const pxPerMM = canvas.width / pdfWidthMM;
+      const imgHeightMM = canvas.height / pxPerMM;
 
-    const pxPerMM = canvas.width / pdfWidthMM;
-    const imgHeightMM = canvas.height / pxPerMM;
-
-    pdf.addImage(imgData, "PNG", 0, 0, pdfWidthMM, imgHeightMM);
-    pdf.save(`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`);
-  } catch (err) {
-    console.error("PDF Generation failed", err);
-    alert("Error generating PDF. Try printing to PDF from your browser.");
-  }
-};
-
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidthMM, imgHeightMM);
+      pdf.save(
+        `Receipt_${String(donation.operationNumber || "0000").padStart(
+          4,
+          "0"
+        )}.pdf`
+      );
+    } catch (err) {
+      console.error("PDF Generation failed", err);
+      alert("Error generating PDF. Try printing to PDF from your browser.");
+    }
+  };
 
   const formatMoney = (v) => {
     try {
@@ -472,166 +480,132 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t = {}, 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
 
-      <div className="bg-white w-full max-w-4xl rounded-lg shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
-
-        {/* Header */}
-        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t?.dir || "rtl"}>
-          <div className="flex items-center gap-2 text-white font-bold">
-            <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-              <path d="M21 8V21H3V5a2 2 0 012-2h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span>{t.viewReceipt || "View receipt"}</span>
-          </div>
-
-          <div className="flex gap-2">
-            <button onClick={downloadPDF} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M7 10l5-5 5 5" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M12 5v12" stroke="currentColor" strokeWidth="1.5"/>
-              </svg>
-              <span className="hidden sm:inline">{t.downloadPdf || "Download PDF"}</span>
-            </button>
-
-            <button onClick={handlePrint} className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M6 9V3h12v6" stroke="currentColor" strokeWidth="1.5"/>
-                <rect x="3" y="13" width="18" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-              </svg>
-              <span className="hidden sm:inline">{t.printReceipt || "Print"}</span>
-            </button>
-
-            <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition">
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24">
-                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="1.5"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Preview */}
-        <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
-
+      {/* Responsive preview wrapper */}
+      <div className="overflow-x-auto w-full flex justify-center">
+        <div
+          className="bg-white rounded-lg shadow-2xl print:shadow-none"
+          ref={printAreaRef}
+          id="receipt-print-area"
+          style={{
+            width: "210mm",
+            height: "297mm",
+            background: "#fff",
+            boxShadow: "0 6px 30px rgba(2,6,23,0.25)",
+            transformOrigin: "top center",
+          }}
+        >
           <div
-            ref={printAreaRef}
-            id="receipt-print-area"
+            className="receipt-content"
             style={{
-              width: "210mm",
-              height: "297mm",
-              background: "#fff",
-              boxShadow: "0 6px 30px rgba(2,6,23,0.25)",
+              width: "100%",
+              height: "100%",
+              padding: "16mm",
+              boxSizing: "border-box",
+              position: "relative",
+              direction: "rtl",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
             }}
-            className="relative"
           >
+            {/* Watermark */}
             <div
-              className="receipt-content"
               style={{
-                width: "100%",
-                height: "100%",
-                padding: "16mm",
-                boxSizing: "border-box",
-                position: "relative",
-                direction: "rtl",
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: 0.06,
+                pointerEvents: "none",
               }}
             >
-              {/* Watermark */}
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.06, pointerEvents: "none" }}>
-                <img src={logoPath} style={{ width: "130mm", objectFit: "contain" }} />
-              </div>
-
-              {/* Main Content */}
-              <div style={{ position: "relative", zIndex: 5, height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-
-                {/* Header Section */}
-                <header style={{ textAlign: "center", borderBottom: "2px solid #0f172a", paddingBottom: "6mm" }}>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: "4mm" }}>
-                    <img src={logoPath} style={{ height: "24mm" }} />
-                  </div>
-                  <h1 style={{ fontSize: "18pt", fontWeight: 800 }}>{t.appTitle}</h1>
-                  <p style={{ fontSize: "10pt", fontWeight: 700 }}>{t.subTitle}</p>
-
-                  <div style={{ marginTop: "6mm", background: "#0f172a", color: "#fff", padding: "6px 12px", borderRadius: "999px", fontFamily: "monospace", fontSize: "12pt", fontWeight: 800 }}>
-                    رقم الوصل: {String(donation.operationNumber).padStart(4, "0")}
-                  </div>
-                </header>
-
-                {/* Content */}
-                <main style={{ padding: "6mm 4mm", fontSize: "14pt", display: "flex", flexDirection: "column", gap: "10mm" }}>
-                  <div style={{ display: "flex", gap: "8mm", alignItems: "center" }}>
-                    <div style={{ fontWeight: 800, minWidth: "40mm" }}>{t.receiptName} :</div>
-                    <div style={{ flex: 1, textAlign: "center", borderBottom: "2px dotted #94a3b8", fontWeight: 700 }}>
-                      {donation.donorName || t.guest}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: "8mm", alignItems: "center" }}>
-                    <div style={{ fontWeight: 800, minWidth: "40mm" }}>{t.receiptAmount} :</div>
-                    <div style={{ flex: 1, textAlign: "center", borderBottom: "2px dotted #94a3b8", fontWeight: 900, fontSize: "18pt" }}>
-                      {formatMoney(donation.amount)} <span style={{ fontSize: "10pt" }}>({t.currency})</span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: "8mm", alignItems: "center" }}>
-                    <div style={{ fontWeight: 800, minWidth: "40mm" }}>{t.receiptDate} :</div>
-                    <div style={{ flex: 1, textAlign: "center", borderBottom: "2px dotted #94a3b8", fontWeight: 700 }}>
-                      {formatDate(donation.date)}
-                    </div>
-                  </div>
-                </main>
-
-                {/* Footer */}
-                <footer style={{ marginTop: "6mm" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <div style={{ textAlign: "center", width: "48%" }}>
-                      <p style={{ fontWeight: 800, textDecoration: "underline" }}>{t.receivedBy}</p>
-                      <p style={{ fontSize: "10pt", marginTop: "6px" }}>{donation.memberName}</p>
-                    </div>
-
-                    <div style={{ textAlign: "center", width: "48%" }}>
-                      <p style={{ fontWeight: 800, textDecoration: "underline" }}>{t.receiptSignature}</p>
-                      <div style={{ height: "30mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <img src={signatureUrl} style={{ maxHeight: "30mm", transform: "rotate(-6deg)" }} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: "10mm", paddingTop: "6px", borderTop: "1px solid #e2e8f0", textAlign: "center" }}>
-                    <p style={{ fontSize: "9pt", color: "#94a3b8" }}>
-                      {t.receiptFooter} | {t.appTitle}
-                    </p>
-                  </div>
-                </footer>
-
-              </div>
+              <img src={logoPath} style={{ width: "130mm", objectFit: "contain" }} />
             </div>
+
+            {/* Header */}
+            <header style={{ textAlign: "center", borderBottom: "2px solid #0f172a", paddingBottom: "6mm" }}>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: "4mm" }}>
+                <img src={logoPath} style={{ height: "24mm" }} />
+              </div>
+              <h1 style={{ fontSize: "18pt", fontWeight: 800 }}>{t.appTitle}</h1>
+              <p style={{ fontSize: "10pt", fontWeight: 700 }}>{t.subTitle}</p>
+
+              <div style={{ marginTop: "6mm", background: "#0f172a", color: "#fff", padding: "6px 12px", borderRadius: "999px", fontFamily: "monospace", fontSize: "12pt", fontWeight: 800 }}>
+                رقم الوصل: {String(donation.operationNumber).padStart(4, "0")}
+              </div>
+            </header>
+
+            {/* Main Content */}
+            <main style={{ padding: "6mm 4mm", fontSize: "14pt", display: "flex", flexDirection: "column", gap: "10mm" }}>
+              <div style={{ display: "flex", gap: "8mm", alignItems: "center" }}>
+                <div style={{ fontWeight: 800, minWidth: "40mm" }}>{t.receiptName} :</div>
+                <div style={{ flex: 1, textAlign: "center", borderBottom: "2px dotted #94a3b8", fontWeight: 700 }}>
+                  {donation.donorName || t.guest}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "8mm", alignItems: "center" }}>
+                <div style={{ fontWeight: 800, minWidth: "40mm" }}>{t.receiptAmount} :</div>
+                <div style={{ flex: 1, textAlign: "center", borderBottom: "2px dotted #94a3b8", fontWeight: 900, fontSize: "18pt" }}>
+                  {formatMoney(donation.amount)} <span style={{ fontSize: "10pt" }}>({t.currency})</span>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "8mm", alignItems: "center" }}>
+                <div style={{ fontWeight: 800, minWidth: "40mm" }}>{t.receiptDate} :</div>
+                <div style={{ flex: 1, textAlign: "center", borderBottom: "2px dotted #94a3b8", fontWeight: 700 }}>
+                  {formatDate(donation.date)}
+                </div>
+              </div>
+            </main>
+
+            {/* Footer */}
+            <footer style={{ marginTop: "6mm" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ textAlign: "center", width: "48%" }}>
+                  <p style={{ fontWeight: 800, textDecoration: "underline" }}>{t.receivedBy}</p>
+                  <p style={{ fontSize: "10pt", marginTop: "6px" }}>{donation.memberName}</p>
+                </div>
+
+                <div style={{ textAlign: "center", width: "48%" }}>
+                  <p style={{ fontWeight: 800, textDecoration: "underline" }}>{t.receiptSignature}</p>
+                  <div style={{ height: "30mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <img src={signatureUrl} style={{ maxHeight: "30mm", transform: "rotate(-6deg)" }} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: "10mm", paddingTop: "6px", borderTop: "1px solid #e2e8f0", textAlign: "center" }}>
+                <p style={{ fontSize: "9pt", color: "#94a3b8" }}>
+                  {t.receiptFooter} | {t.appTitle}
+                </p>
+              </div>
+            </footer>
           </div>
         </div>
       </div>
 
-      {/* Styles */}
+      {/* Header buttons */}
+      <div className="absolute top-4 right-4 flex gap-2 print:hidden">
+        <button onClick={downloadPDF} className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold">PDF</button>
+        <button onClick={handlePrint} className="px-4 py-2 bg-white text-slate-900 rounded-lg font-bold">Print</button>
+        <button onClick={onClose} className="px-2 py-2 text-red-500">Close</button>
+      </div>
+
       <style>{`
         @media print {
           body, html { margin: 0 !important; padding: 0 !important; }
           @page { size: A4 portrait; margin: 0; }
           .fixed { position: static !important; }
         }
-
-        @media (max-width: 1000px) {
-          #receipt-print-area { transform: scale(0.9); transform-origin: top center; }
-        }
-        @media (max-width: 700px) {
-          #receipt-print-area { transform: scale(0.66); transform-origin: top center; }
-        }
-        @media (max-width: 420px) {
-          #receipt-print-area { transform: scale(0.52); transform-origin: top center; }
-        }
-
         #receipt-print-area * { user-select: none; -webkit-user-select: none; }
       `}</style>
-
     </div>
   );
 };
+
+export default ReceiptModal;
 
 
 
