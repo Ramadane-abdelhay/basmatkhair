@@ -392,196 +392,227 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
 };
 
 const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang }) => {
-  
-  const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
+  
+  const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
 
-  useEffect(() => {
-    if (autoPrint) {
-      const timer = setTimeout(() => window.print(), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [autoPrint]);
+  useEffect(() => {
+    if (autoPrint) {
+      const timer = setTimeout(() => window.print(), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => window.print();
 
-  const downloadPDF = async () => {
-    const element = document.getElementById("receipt-print-area");
-    if (!element) return;
+  const downloadPDF = async () => {
+    const element = document.getElementById("receipt-print-area");
+    if (!element) return;
 
-    try {
-      const canvas = await html2canvas(element, {
-        scale: 2.5,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false
-      });
+    try {
+      const canvas = await html2canvas(element, {
+        scale: 2.5,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false
+      });
 
-      const imgData = canvas.toDataURL("image/jpeg", 1.0);
-      const pdf = new jsPDF("p", "mm", "a5");
-      
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, imgHeight);
-      pdf.save(`Receipt_${donation.operationNumber}.pdf`);
-    } catch (err) {
-      console.error("PDF Generation failed", err);
-      alert("Error generating PDF. Please try printing to PDF.");
-    }
-  };
+      const imgData = canvas.toDataURL("image/jpeg", 1.0);
+      const pdf = new jsPDF("p", "mm", "a5");
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, imgHeight);
+      pdf.save(`Receipt_${donation.operationNumber}.pdf`);
+    } catch (err) {
+      console.error("PDF Generation failed", err);
+      alert("Error generating PDF. Please try printing to PDF.");
+    }
+  };
 
-  if (!donation) return null;
+  if (!donation) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
-      
-      <div className="bg-white w-full max-w-xl rounded-none md:rounded-2xl shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto print:block">
+      
+      <div className="bg-white w-full max-w-xl rounded-none md:rounded-2xl shadow-2xl flex flex-col max-h-[95vh] overflow-hidden print:shadow-none print:w-full print:max-w-none print:max-h-none print:overflow-visible">
+        
+        {/* Header */}
+        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t.dir}>
+          <div className="flex items-center gap-2 text-white font-bold">
+            <Receipt size={20} className="text-emerald-400" />
+            <span>{t.viewReceipt}</span>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={downloadPDF} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
+              <Download size={16} />
+              <span className="hidden sm:inline">{t.downloadPdf}</span>
+            </button>
+            <button onClick={handlePrint} className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
+              <Printer size={16} />
+              <span className="hidden sm:inline">{t.printReceipt}</span>
+            </button>
+            <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition">
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable Preview */}
+        <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
+
+          {/* NOTE: outer #receipt-print-area defines the A5 size and is used for PDF/Print */}
+          <div
+            id="receipt-print-area"
+            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm] receipt-scale-wrapper" // Added receipt-scale-wrapper
+            style={{ padding: '30px' }}
+            dir="rtl"
+          >
+            {/* <-- INNER DIV (This is the content that gets scaled in the preview) */}
+            <div className="receipt-inner-scale border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
+
+              {/* Watermark */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
+                <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
+              </div>
+
+              {/* Header */}
+              <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
+                <div className="flex justify-center mb-4">
+                  <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
+                <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
+                <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
+                  رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 space-y-8 text-xl px-2">
+
+                <div className="flex items-baseline w-full">
+                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptName} :</span>
+                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
+                    {donation.donorName || t.guest}
+                  </div>
+                </div>
+
+                <div className="flex items-baseline w-full">
+                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptAmount} :</span>
+                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900">
+                    {formatMoney(donation.amount)} <span className="text-sm text-slate-500">({t.currency})</span>
+                  </div>
+                </div>
+
+                <div className="flex items-baseline w-full">
+                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptDate} :</span>
+                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
+                    {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Footer */}
+              <div className="mt-16 pt-8 flex justify-between items-start">
+                <div className="text-center w-1/2">
+                  <p className="font-bold text-slate-700 mb-2 underline">{t.receivedBy}</p>
+                  <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
+                </div>
+
+                <div className="text-center w-1/2">
+                  <p className="font-bold text-slate-700 mb-4 underline">{t.receiptSignature}</p>
+                  <div className="h-20 flex items-center justify-center">
+                    <img 
+                      src={signatureUrl}
+                      className="max-h-24 object-contain mix-blend-multiply -rotate-6"
+                      alt="Signature"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t text-center">
+                <p className="text-[10px] text-slate-400">
+                  {t.receiptFooter} | {t.appTitle}
+                </p>
+              </div>
+
+            </div> {/* /.receipt-inner-scale */}
+          </div> {/* /#receipt-print-area */}
+
+        </div>
+      </div>
+
+      {/* Styles */}
+      <style>{`
+        /* The outer print area (#receipt-print-area) remains its defined A5 dimensions (max-w-[148mm] min-h-[210mm]). */
+        .receipt-scale-wrapper {
+            position: relative; /* Crucial for positioning the inner element */
+            padding: 30px; /* Preserve the original padding */
+            /* The overall max-width and min-height are set in the component's Tailwind classes. */
+        }
         
-        {/* Header */}
-        <div className="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700 shrink-0 print:hidden" dir={t.dir}>
-          <div className="flex items-center gap-2 text-white font-bold">
-            <Receipt size={20} className="text-emerald-400" />
-            <span>{t.viewReceipt}</span>
-          </div>
-
-          <div className="flex gap-2">
-            <button onClick={downloadPDF} className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-500 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
-              <Download size={16} />
-              <span className="hidden sm:inline">{t.downloadPdf}</span>
-            </button>
-            <button onClick={handlePrint} className="px-4 py-2 bg-white text-slate-900 hover:bg-slate-100 rounded-lg shadow-sm transition font-bold flex items-center gap-2 text-sm">
-              <Printer size={16} />
-              <span className="hidden sm:inline">{t.printReceipt}</span>
-            </button>
-            <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/10 rounded-lg transition">
-              <X size={24} />
-            </button>
-          </div>
-        </div>
-
-        {/* Scrollable Preview */}
-        <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
-
-          {/* NOTE: outer #receipt-print-area stays unscaled; only its first inner div gets scaled on mobile */}
-          <div
-            id="receipt-print-area"
-            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm]"
-            style={{ padding: '30px' }}
-            dir="rtl"
-          >
-            {/* <-- FIRST INNER DIV (we'll scale this on mobile) */}
-            <div className="receipt-inner-scale border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
-
-              {/* Watermark */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
-                <img src={logoPath} className="w-64 h-64 object-contain grayscale" />
-              </div>
-
-              {/* Header */}
-              <div className="text-center border-b-2 border-slate-800 pb-6 mb-8">
-                <div className="flex justify-center mb-4">
-                  <img src={logoPath} className="h-24 w-auto object-contain" alt="Logo" />
-                </div>
-                <h1 className="text-2xl font-black text-slate-900 mb-2">{t.appTitle}</h1>
-                <p className="text-sm font-bold text-slate-600">{t.subTitle}</p>
-                <div className="mt-4 inline-block px-6 py-2 bg-slate-900 text-white font-mono font-bold text-lg rounded-full">
-                  رقم الوصل: {String(donation.operationNumber).padStart(4, '0')}
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 space-y-8 text-xl px-2">
-
-                <div className="flex items-baseline w-full">
-                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptName} :</span>
-                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
-                    {donation.donorName || t.guest}
-                  </div>
-                </div>
-
-                <div className="flex items-baseline w-full">
-                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptAmount} :</span>
-                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-black text-2xl text-slate-900">
-                    {formatMoney(donation.amount)} <span className="text-sm text-slate-500">({t.currency})</span>
-                  </div>
-                </div>
-
-                <div className="flex items-baseline w-full">
-                  <span className="font-bold text-slate-900 ml-3 min-w-fit">{t.receiptDate} :</span>
-                  <div className="flex-1 border-b-2 border-dotted border-slate-400 text-center font-bold text-slate-800">
-                    {formatDate(donation.date, lang === 'ar' ? 'ar-MA' : 'fr-FR')}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Footer */}
-              <div className="mt-16 pt-8 flex justify-between items-start">
-                <div className="text-center w-1/2">
-                  <p className="font-bold text-slate-700 mb-2 underline">{t.receivedBy}</p>
-                  <p className="font-medium text-slate-600 text-sm">{donation.memberName}</p>
-                </div>
-
-                <div className="text-center w-1/2">
-                  <p className="font-bold text-slate-700 mb-4 underline">{t.receiptSignature}</p>
-                  <div className="h-20 flex items-center justify-center">
-                    <img 
-                      src={signatureUrl}
-                      className="max-h-24 object-contain mix-blend-multiply -rotate-6"
-                      alt="Signature"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 pt-4 border-t text-center">
-                <p className="text-[10px] text-slate-400">
-                  {t.receiptFooter} | {t.appTitle}
-                </p>
-              </div>
-
-            </div> {/* /.receipt-inner-scale */}
-          </div> {/* /#receipt-print-area */}
-
-        </div>
-      </div>
-
-      {/* Styles */}
-      <style>{`
-        /* The outer print area remains unscaled so print/A5 sizing and html2canvas capture are stable. */
-        .receipt-inner-scale {
-          transform: scale(1);
-          transform-origin: top center;
-          width: 100%;
+        /* The inner content div is positioned and scaled to fit the wrapper's available space,
+           but only in the non-print view, simulating a true 'A5' document. */
+        .receipt-inner-scale {
+            /* Remove the transform: scale(1) and width: 100% properties from the CSS block.
+               They are not needed for this single-scaling approach. */
+            position: absolute;
+            top: 30px; /* Aligns with the wrapper's padding */
+            left: 30px; /* Aligns with the wrapper's padding */
+            right: 30px; /* Aligns with the wrapper's padding */
+            bottom: 30px; /* Aligns with the wrapper's padding */
+            height: calc(100% - 60px); /* Fill the space inside the 30px padding */
+            width: calc(100% - 60px); /* Fill the space inside the 30px padding */
+            box-sizing: border-box;
         }
 
-        /* Scale only the first inner div on small screens (mobile preview) */
-        @media (max-width: 480px) {
-          .receipt-inner-scale {
-            transform: scale(0.78);
-            width: 128%; /* compensate for scaling so layout width looks the same */
-          }
-        }
+        /* Crucial Fix: Remove the old mobile-specific media query completely.
+           The receipt-inner-scale should have a fixed (non-scaled) appearance
+           in the preview on ALL devices. The responsiveness is handled by 
+           the w-full and max-w-xl classes on the parent modal content div, 
+           and the max-w-[148mm] on the #receipt-print-area.
+           
+           If you still want the **entire A5 container** to scale down on small screens,
+           you should apply the scaling to the `#receipt-print-area` itself, 
+           or keep the original scale on the inner div but remove the mobile override.
+           
+           Since you want one render for all devices, and the original code 
+           was already trying to make the *print area* fixed A5, the best 
+           approach is to simply **remove the conflicting mobile CSS** block. 
+           The existing Tailwind setup (w-full max-w-xl on the modal) and 
+           max-w-[148mm] on the receipt itself means the A5 size will be the max, 
+           and it will shrink gracefully on very small screens (unless the 
+           max-w-[148mm] is strictly enforced on mobile via min-width overrides, 
+           which it is not here).
+        */
 
-        /* Print: ensure the printed/exported output is unaffected by preview scaling */
-        @media print {
-          @page { size: A5; margin: 0; }
-          .receipt-inner-scale {
-            transform: scale(1) !important;
-            width: 100% !important;
-            box-shadow: none !important;
-          }
-          #receipt-print-area {
-            padding: 10mm !important;
-          }
-        }
-      `}</style>
+        /* Print: ensure the printed/exported output is clean and A5 */
+        @media print {
+          @page { size: A5; margin: 0; }
+          .receipt-inner-scale {
+            /* Reset for printing */
+            transform: scale(1) !important;
+            width: 100% !important;
+            height: 100% !important;
+             position: relative !important; /* Back to normal document flow for print */
+            box-shadow: none !important;
+          }
+          #receipt-print-area {
+            padding: 10mm !important; /* Set print-specific padding */
+             width: 148mm !important; /* Enforce A5 width */
+             min-height: 210mm !important; /* Enforce A5 height */
+          }
+        }
+      `}</style>
 
-    </div>
-  );
+    </div>
+  );
 };
-
 
 
 // --- 5. MAIN VIEWS ---
