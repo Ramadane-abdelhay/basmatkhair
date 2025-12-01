@@ -411,34 +411,39 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t = {}, 
   const handlePrint = () => window.print();
 
   const downloadPDF = async () => {
-    const element = printAreaRef.current;
-    if (!element) return;
+  const element = printAreaRef.current;
+  if (!element) return;
 
-    try {
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidthMM = pdf.internal.pageSize.getWidth();
-      const pdfHeightMM = pdf.internal.pageSize.getHeight();
+  try {
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pdfWidthMM = pdf.internal.pageSize.getWidth();
+    const pdfHeightMM = pdf.internal.pageSize.getHeight();
 
-      const scale = Math.min(2, window.devicePixelRatio || 1) * 2;
+    // FIX for mobile cropping + correct scaling
+    const canvas = await html2canvas(element, {
+      scale: 2,                     // keep good quality
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      width: element.offsetWidth,   // force correct capture size
+      height: element.offsetHeight,
+      windowWidth: element.scrollWidth,     // prevent mobile shrinking
+      windowHeight: element.scrollHeight,
+    });
 
-      const canvas = await html2canvas(element, {
-        scale,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
+    const imgData = canvas.toDataURL("image/png", 1.0);
 
-      const imgData = canvas.toDataURL("image/png", 1.0);
-      const pxPerMM = canvas.width / pdfWidthMM;
-      const imgHeightMM = canvas.height / pxPerMM;
+    const pxPerMM = canvas.width / pdfWidthMM;
+    const imgHeightMM = canvas.height / pxPerMM;
 
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidthMM, imgHeightMM);
-      pdf.save(`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`);
-    } catch (err) {
-      console.error("PDF Generation failed", err);
-      alert("Error generating PDF. Try printing to PDF from your browser.");
-    }
-  };
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidthMM, imgHeightMM);
+    pdf.save(`Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`);
+  } catch (err) {
+    console.error("PDF Generation failed", err);
+    alert("Error generating PDF. Try printing to PDF from your browser.");
+  }
+};
+
 
   const formatMoney = (v) => {
     try {
