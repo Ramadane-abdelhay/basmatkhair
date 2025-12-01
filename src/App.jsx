@@ -480,7 +480,7 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
           {/* --- NEW RECEIPT LAYOUT --- */}
           <div
             id="receipt-print-area"
-            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm] md:min-h-0"
+            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm]"
             style={{ padding: '30px' }}
             dir="rtl"
           >
