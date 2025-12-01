@@ -463,14 +463,14 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
         {/* Scrollable Preview */}
         <div className="overflow-y-auto bg-slate-200 p-4 md:p-8 flex justify-center print:p-0 print:bg-white print:overflow-visible">
 
-          {/* NOTE: outer #receipt-print-area defines the A5 size and is used for PDF/Print */}
+          {/* NOTE: outer #receipt-print-area stays unscaled; only its first inner div gets scaled on mobile */}
           <div
             id="receipt-print-area"
-            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm] receipt-scale-wrapper" // Added receipt-scale-wrapper
+            className="bg-white shadow-lg relative print:shadow-none print:m-0 w-full max-w-[148mm] min-h-[210mm]"
             style={{ padding: '30px' }}
             dir="rtl"
           >
-            {/* <-- INNER DIV (This is the content that gets scaled in the preview) */}
+            {/* <-- FIRST INNER DIV (we'll scale this on mobile) */}
             <div className="receipt-inner-scale border-4 border-double border-slate-800 h-full p-6 flex flex-col justify-between relative">
 
               {/* Watermark */}
@@ -549,63 +549,31 @@ const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t, lang 
 
       {/* Styles */}
       <style>{`
-        /* The outer print area (#receipt-print-area) remains its defined A5 dimensions (max-w-[148mm] min-h-[210mm]). */
-        .receipt-scale-wrapper {
-            position: relative; /* Crucial for positioning the inner element */
-            padding: 30px; /* Preserve the original padding */
-            /* The overall max-width and min-height are set in the component's Tailwind classes. */
-        }
-        
-        /* The inner content div is positioned and scaled to fit the wrapper's available space,
-           but only in the non-print view, simulating a true 'A5' document. */
+        /* The outer print area remains unscaled so print/A5 sizing and html2canvas capture are stable. */
         .receipt-inner-scale {
-            /* Remove the transform: scale(1) and width: 100% properties from the CSS block.
-               They are not needed for this single-scaling approach. */
-            position: absolute;
-            top: 30px; /* Aligns with the wrapper's padding */
-            left: 30px; /* Aligns with the wrapper's padding */
-            right: 30px; /* Aligns with the wrapper's padding */
-            bottom: 30px; /* Aligns with the wrapper's padding */
-            height: calc(100% - 60px); /* Fill the space inside the 30px padding */
-            width: calc(100% - 60px); /* Fill the space inside the 30px padding */
-            box-sizing: border-box;
-        }
+          transform: scale(1);
+          transform-origin: top center;
+          width: 100%;
+        }
 
-        /* Crucial Fix: Remove the old mobile-specific media query completely.
-           The receipt-inner-scale should have a fixed (non-scaled) appearance
-           in the preview on ALL devices. The responsiveness is handled by 
-           the w-full and max-w-xl classes on the parent modal content div, 
-           and the max-w-[148mm] on the #receipt-print-area.
-           
-           If you still want the **entire A5 container** to scale down on small screens,
-           you should apply the scaling to the `#receipt-print-area` itself, 
-           or keep the original scale on the inner div but remove the mobile override.
-           
-           Since you want one render for all devices, and the original code 
-           was already trying to make the *print area* fixed A5, the best 
-           approach is to simply **remove the conflicting mobile CSS** block. 
-           The existing Tailwind setup (w-full max-w-xl on the modal) and 
-           max-w-[148mm] on the receipt itself means the A5 size will be the max, 
-           and it will shrink gracefully on very small screens (unless the 
-           max-w-[148mm] is strictly enforced on mobile via min-width overrides, 
-           which it is not here).
-        */
+        /* Scale only the first inner div on small screens (mobile preview) */
+        @media (max-width: 480px) {
+          .receipt-inner-scale {
+            transform: scale(0.78);
+            width: 128%; /* compensate for scaling so layout width looks the same */
+          }
+        }
 
-        /* Print: ensure the printed/exported output is clean and A5 */
+        /* Print: ensure the printed/exported output is unaffected by preview scaling */
         @media print {
           @page { size: A5; margin: 0; }
           .receipt-inner-scale {
-            /* Reset for printing */
             transform: scale(1) !important;
             width: 100% !important;
-            height: 100% !important;
-             position: relative !important; /* Back to normal document flow for print */
             box-shadow: none !important;
           }
           #receipt-print-area {
-            padding: 10mm !important; /* Set print-specific padding */
-             width: 148mm !important; /* Enforce A5 width */
-             min-height: 210mm !important; /* Enforce A5 height */
+            padding: 10mm !important;
           }
         }
       `}</style>
