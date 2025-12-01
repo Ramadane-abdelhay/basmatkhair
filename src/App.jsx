@@ -392,17 +392,7 @@ const LanguageSelector = ({ currentLang, setLang, t, isOpen, setIsOpen, up = fal
 };
 
 
-const ReceiptModal = ({
-  donation,
-  onClose,
-  logoPath,
-  autoPrint = false,
-  t = {},
-  lang = "fr",
-}) => {
-  const signatureUrl =
-    "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
-
+const ReceiptModal = ({ donation, onClose, logoPath, autoPrint = false, t = {}, lang = "fr" }) => { const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
   const printAreaRef = useRef(null);
 
   useEffect(() => {
