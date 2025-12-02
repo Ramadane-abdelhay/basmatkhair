@@ -684,6 +684,17 @@ const ReceiptModal = ({
                 
                 {/* Header */}
                 <header className="text-center border-b-2 border-slate-900 pb-8">
+
+                  {/* QR Code - Top Left */}
+                  <div className="absolute top-4 left-4">
+                    <img
+                      src={qrCodeUrl}
+                      className="w-20 h-20 object-contain opacity-90"
+                      alt="QR Code"
+                    />
+                  </div>
+  
+                  
                   <div className="flex justify-center mb-6">
                     <img src={logoPath} className="h-[55mm] object-contain" alt="Logo" />
                   </div>
@@ -750,7 +761,7 @@ const ReceiptModal = ({
 
                 {/* Footer */}
                 <footer className="mt-auto">
-                  <div className="flex justify-between items-end mb-16 px-4">
+                  <div className="flex justify-between items-start mb-8 px-4">
                     
                     {/* Received By */}
                     <div className="text-center w-5/12">
@@ -758,14 +769,10 @@ const ReceiptModal = ({
                         {t.receivedBy}
                       </p>
                       <p className="text-xl text-slate-700 font-bold">
-                        {t.receivedByTitle} {donation.memberName}
+                        : {t.receivedByTitle} {donation.memberName}
                       </p>
                     </div>
 
-                    {/* QR Code (Bottom Center/Left) */}
-                    <div className="mb-2">
-                      <img src={qrCodeUrl} className="w-24 h-24 object-contain mx-auto" alt="QR Code" />
-                    </div>
 
                     {/* Signature */}
                     <div className="text-center w-5/12">
