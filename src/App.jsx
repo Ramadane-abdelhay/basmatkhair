@@ -51,7 +51,8 @@ import {
   Globe, 
   Languages, 
   LogIn,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Tag
 } from 'lucide-react';
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -89,7 +90,7 @@ const TRANSLATIONS = {
     dir: 'rtl',
     langName: "العربية",
     appTitle: "جمعية بصمة خير",
-    subTitle: "للأعمال الاجتماعية والخيرية",
+    subTitle: "نبادر لنعطي ونعطي لنأثر",
     dashboard: "الرئيسية",
     add: "تبرع جديد",
     history: "الأرشيف",
@@ -127,6 +128,13 @@ const TRANSLATIONS = {
       check: "شيك",
       other: "أخرى"
     },
+    // NEW FIELDS
+    contributionType: "طبيعة المساهمة",
+    contributionTypes: {
+      financial: "تبرع مالي",
+      annual: "انخراط سنوي",
+      activity: "المساهمة في نشاط"
+    },
     email: "البريد الإلكتروني",
     password: "كلمة المرور",
     rememberMe: "تذكرني", 
@@ -140,10 +148,11 @@ const TRANSLATIONS = {
     delete: "حذف",
     opNumber: "رقم العملية",
     receivedBy: "المستلم",
+    receivedByTitle: "امين المال", // Treasurer
     receiptTitle: "وصل تبرع",
     receiptAssocName: "جمعية بصمة خير للأعمال الاجتماعية",
-    receiptFooter: "شكراً لانخراطكم ودعمكم لأنشطة الجمعية",
-    receiptSignature: "توقيع المستلم",
+    receiptFooter: "هذا الوصل يثبت حصول الجمعية على المبلغ | شكراً لانخراطكم ودعمكم لأنشطة الجمعية",
+    receiptSignature: "ختم الجمعية",
     receiptName: "الاسم الكامل",
     receiptAmount: "المبلغ المؤدى",
     receiptDate: "تاريخ الأداء",
@@ -161,7 +170,7 @@ const TRANSLATIONS = {
     dir: 'ltr',
     langName: "English",
     appTitle: "Basmat Khair",
-    subTitle: "For Social & Charitable Works",
+    subTitle: "We initiate to give, and give to impact",
     dashboard: "Dashboard",
     add: "New Donation",
     history: "History",
@@ -199,6 +208,12 @@ const TRANSLATIONS = {
       check: "Check",
       other: "Other"
     },
+    contributionType: "Contribution Type",
+    contributionTypes: {
+      financial: "Financial Donation",
+      annual: "Annual Membership",
+      activity: "Activity Contribution"
+    },
     email: "Email",
     password: "Password",
     rememberMe: "Remember Me", 
@@ -212,10 +227,11 @@ const TRANSLATIONS = {
     delete: "Delete",
     opNumber: "Op Number",
     receivedBy: "Received By",
+    receivedByTitle: "Treasurer",
     receiptTitle: "Donation Receipt",
     receiptAssocName: "Basmat Khair Association",
-    receiptFooter: "Thank you for your support",
-    receiptSignature: "Recipient Signature",
+    receiptFooter: "This receipt proves the association received the amount | Thank you for your support",
+    receiptSignature: "Association Stamp",
     receiptName: "Full Name",
     receiptAmount: "Amount Paid",
     receiptDate: "Payment Date",
@@ -233,7 +249,7 @@ const TRANSLATIONS = {
     dir: 'ltr',
     langName: "Français",
     appTitle: "Basmat Khair",
-    subTitle: "Pour les Œuvres Sociales",
+    subTitle: "Nous initions pour donner, et donnons pour impacter",
     dashboard: "Tableau de bord",
     add: "Nouveau Don",
     history: "Historique",
@@ -271,6 +287,12 @@ const TRANSLATIONS = {
       check: "Chèque",
       other: "Autre"
     },
+    contributionType: "Type de Contribution",
+    contributionTypes: {
+      financial: "Don Financier",
+      annual: "Adhésion Annuelle",
+      activity: "Contribution à une Activité"
+    },
     email: "E-mail",
     password: "Mot de passe",
     rememberMe: "Se souvenir de moi",
@@ -284,10 +306,11 @@ const TRANSLATIONS = {
     delete: "Supprimer",
     opNumber: "N° Opération",
     receivedBy: "Reçu Par",
+    receivedByTitle: "Trésorier",
     receiptTitle: "Reçu de Don",
     receiptAssocName: "Association Basmat Khair",
-    receiptFooter: "Merci pour votre soutien",
-    receiptSignature: "Signature",
+    receiptFooter: "Ce reçu prouve la réception du montant | Merci pour votre soutien",
+    receiptSignature: "Cachet de l'Association",
     receiptName: "Nom Complet",
     receiptAmount: "Montant Payé",
     receiptDate: "Date de Paiement",
@@ -401,6 +424,7 @@ const ReceiptModal = ({
   lang = "fr" 
 }) => {
   const signatureUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/singnature-basmat.png";
+  const qrCodeUrl = "https://raw.githubusercontent.com/Ramadane-abdelhay/basmatkhair/refs/heads/main/basmat-qr-code.png";
   
   const printAreaRef = useRef(null);
   const containerRef = useRef(null);
@@ -475,86 +499,68 @@ const ReceiptModal = ({
 
   const handlePrint = () => window.print();
 
-  // 4. Robust Desktop-Rendered PDF Download (mobile-safe)
-const downloadPDF = async () => {
-  if (!libsLoaded) {
-    alert("Please wait for PDF tools to load...");
-    return;
-  }
+  const downloadPDF = async () => {
+    if (!libsLoaded) {
+      alert("Please wait for PDF tools to load...");
+      return;
+    }
 
-  const original = printAreaRef.current;
-  if (!original) return;
+    const original = printAreaRef.current;
+    if (!original) return;
 
-  setIsGenerating(true);
+    setIsGenerating(true);
 
-  try {
-    const html2canvas = window.html2canvas;
-    const { jsPDF } = window.jspdf;
+    try {
+      const html2canvas = window.html2canvas;
+      const { jsPDF } = window.jspdf;
 
-    // ---------------------------------------------
-    // 1. Create a hidden DESKTOP-SIZED container
-    // ---------------------------------------------
-    const wrapper = document.createElement("div");
-    wrapper.id = "desktop-pdf-wrapper";
-    wrapper.style.position = "fixed";
-    wrapper.style.top = "-3000px";
-    wrapper.style.left = "0";
-    wrapper.style.width = "1200px";        // FORCE desktop width
-    wrapper.style.background = "white";
-    wrapper.style.zIndex = "-999999";
-    wrapper.style.opacity = "0";
+      const wrapper = document.createElement("div");
+      wrapper.id = "desktop-pdf-wrapper";
+      wrapper.style.position = "fixed";
+      wrapper.style.top = "-3000px";
+      wrapper.style.left = "0";
+      wrapper.style.width = "1200px";        
+      wrapper.style.background = "white";
+      wrapper.style.zIndex = "-999999";
+      wrapper.style.opacity = "0";
 
-    document.body.appendChild(wrapper);
+      document.body.appendChild(wrapper);
 
-    // ---------------------------------------------
-    // 2. Clone the receipt WITHOUT mobile scaling
-    // ---------------------------------------------
-    const clone = original.cloneNode(true);
+      const clone = original.cloneNode(true);
+      clone.style.transform = "none";
+      clone.style.width = "210mm";          
+      clone.style.height = "297mm";         
+      clone.style.margin = "0";
+      clone.style.fontFamily = "'Cairo', sans-serif";
 
-    clone.style.transform = "none";
-    clone.style.width = "210mm";          // A4
-    clone.style.height = "297mm";         // A4
-    clone.style.margin = "0";
-    clone.style.fontFamily = "'Cairo', sans-serif";
+      wrapper.appendChild(clone);
 
-    wrapper.appendChild(clone);
+      const canvas = await html2canvas(clone, {
+        scale: 3,            
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        windowWidth: 1200,    
+        windowHeight: 1600,
+      });
 
-    // ---------------------------------------------
-    // 3. Render the desktop clone
-    // ---------------------------------------------
-    const canvas = await html2canvas(clone, {
-      scale: 3,            // SUPER CLEAR export
-      useCORS: true,
-      backgroundColor: "#ffffff",
-      logging: false,
-      windowWidth: 1200,    // Force PC layout
-      windowHeight: 1600,
-    });
+      const imgData = canvas.toDataURL("image/jpeg", 0.78);
+      const pdf = new jsPDF("p", "mm", "a4");
+      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
 
-    // ---------------------------------------------
-    // 4. Export as JPEG (80% smaller file than PNG)
-    // ---------------------------------------------
-    const imgData = canvas.toDataURL("image/jpeg", 0.78);
+      pdf.save(
+        `Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`
+      );
 
-    const pdf = new jsPDF("p", "mm", "a4");
-    pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
-
-    pdf.save(
-      `Receipt_${String(donation.operationNumber || "0000").padStart(4, "0")}.pdf`
-    );
-
-  } catch (err) {
-    console.error("PDF Generation failed", err);
-    alert("Error generating PDF. Please use the Print button fallback.");
-  } finally {
-    // Cleanup hidden clone
-    const temp = document.getElementById("desktop-pdf-wrapper");
-    if (temp) temp.remove();
-
-    setIsGenerating(false);
-  }
-};
-
+    } catch (err) {
+      console.error("PDF Generation failed", err);
+      alert("Error generating PDF. Please use the Print button fallback.");
+    } finally {
+      const temp = document.getElementById("desktop-pdf-wrapper");
+      if (temp) temp.remove();
+      setIsGenerating(false);
+    }
+  };
 
   const formatMoney = (v) => {
     try {
@@ -571,6 +577,12 @@ const downloadPDF = async () => {
         year: "numeric", month: "long", day: "numeric",
       });
     } catch (e) { return d; }
+  };
+
+  // Get localized contribution type
+  const getContributionLabel = (typeKey) => {
+    if (!typeKey) return "";
+    return t.contributionTypes?.[typeKey] || typeKey;
   };
 
   return (
@@ -689,7 +701,7 @@ const downloadPDF = async () => {
                 </header>
 
                 {/* Body */}
-                <main className="flex-1 py-12 flex flex-col gap-12 px-4">
+                <main className="flex-1 py-12 flex flex-col gap-10 px-4">
                   
                   {/* Row 1: Name */}
                   <div className="flex items-end gap-6">
@@ -701,7 +713,17 @@ const downloadPDF = async () => {
                     </div>
                   </div>
 
-                  {/* Row 2: Amount */}
+                  {/* Row 2: Contribution Type (NEW) */}
+                  <div className="flex items-end gap-6">
+                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
+                      {t.contributionType} :
+                    </div>
+                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
+                      {getContributionLabel(donation.contributionType)}
+                    </div>
+                  </div>
+
+                  {/* Row 3: Amount */}
                   <div className="flex items-end gap-6">
                     <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
                       {t.receiptAmount} :
@@ -714,7 +736,7 @@ const downloadPDF = async () => {
                     </div>
                   </div>
 
-                  {/* Row 3: Date */}
+                  {/* Row 4: Date */}
                   <div className="flex items-end gap-6">
                     <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
                       {t.receiptDate} :
@@ -728,15 +750,21 @@ const downloadPDF = async () => {
 
                 {/* Footer */}
                 <footer className="mt-auto">
-                  <div className="flex justify-between items-start mb-16 px-8">
+                  <div className="flex justify-between items-end mb-16 px-4">
+                    
                     {/* Received By */}
                     <div className="text-center w-5/12">
                       <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-4">
                         {t.receivedBy}
                       </p>
-                      <p className="text-2xl text-slate-700 font-semibold font-handwriting">
-                        {donation.memberName}
+                      <p className="text-xl text-slate-700 font-bold">
+                        {t.receivedByTitle} {donation.memberName}
                       </p>
+                    </div>
+
+                    {/* QR Code (Bottom Center/Left) */}
+                    <div className="mb-2">
+                      <img src={qrCodeUrl} className="w-24 h-24 object-contain mx-auto" alt="QR Code" />
                     </div>
 
                     {/* Signature */}
@@ -757,7 +785,7 @@ const downloadPDF = async () => {
                   {/* Bottom Strip */}
                   <div className="border-t-2 border-slate-100 pt-6 text-center">
                     <p className="text-sm text-slate-400 font-semibold tracking-wide">
-                      {t.appTitle} &nbsp;|&nbsp; {t.receiptFooter}
+                      {t.receiptFooter}
                     </p>
                   </div>
                 </footer>
@@ -783,11 +811,6 @@ const downloadPDF = async () => {
     </div>
   );
 };
-
-
-
-
-
 
 
 // --- 5. MAIN VIEWS ---
@@ -977,6 +1000,7 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
               <th class="table-head">رقم العملية</th>
               <th class="table-head">التاريخ</th>
               <th class="table-head">الاسم الكامل</th>
+              <th class="table-head">طبيعة المساهمة</th>
               <th class="table-head">المبلغ (درهم)</th>
               <th class="table-head">طريقة الأداء</th>
               <th class="table-head">الملاحظات</th>
@@ -990,12 +1014,14 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
     // 2. Loop through data
     filteredDonations.forEach((d, index) => {
       const rowClass = index % 2 === 0 ? 'row-even' : 'row-odd';
+      const contributionLabel = t.contributionTypes?.[d.contributionType] || d.contributionType || '-';
       
       tableHTML += `
         <tr class="${rowClass}">
           <td class="cell">#${d.operationNumber}</td>
           <td class="cell">${formatDate(d.date)}</td>
           <td class="cell" style="font-weight:bold;">${d.donorName || t.guest}</td>
+          <td class="cell">${contributionLabel}</td>
           <td class="cell amount">${d.amount}</td>
           <td class="cell">${d.paymentMethod} ${d.bankDetails ? `(${d.bankDetails})` : ''}</td>
           <td class="cell">${d.description || '-'}</td>
@@ -1092,6 +1118,11 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
                     <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded text-xs">
                       <User size={12} /> {d.memberName}
                     </span>
+                    {d.contributionType && (
+                      <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-xs">
+                         <Tag size={12} /> {t.contributionTypes?.[d.contributionType] || d.contributionType}
+                      </span>
+                    )}
                     {d.paymentMethod === 'Bank Transfer' && d.bankDetails && (
                        <span className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">
                          <Banknote size={12} /> {d.bankDetails}
@@ -1164,6 +1195,7 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
     phone: '',
     amount: '',
     method: 'Cash',
+    contributionType: 'financial', // Default value
     bankDetails: '',
     description: ''
   });
@@ -1183,7 +1215,15 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
       memberName: userDisplayName
     }, (success) => {
       if (success) {
-        setFormData({ donorName: '', phone: '', amount: '', method: 'Cash', bankDetails: '', description: '' });
+        setFormData({ 
+          donorName: '', 
+          phone: '', 
+          amount: '', 
+          method: 'Cash', 
+          contributionType: 'financial', 
+          bankDetails: '', 
+          description: '' 
+        });
         setShowConfirm(false);
       }
     });
@@ -1191,17 +1231,53 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
 
   const currentDate = new Date().toLocaleDateString(t.dir === 'rtl' ? 'ar-MA' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
+  // Reusable confirmation modal for Add Donation
+  const ConfirmModal = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95">
+        <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle size={32} />
+        </div>
+        <h3 className="text-xl font-bold text-center text-slate-800 mb-2">{t.confirmTitle}</h3>
+        <p className="text-center text-slate-500 mb-6">{t.confirmMsg}</p>
+        
+        <div className="bg-slate-50 p-4 rounded-xl mb-6 space-y-3">
+          <div className="flex justify-between">
+            <span className="text-slate-500">{t.donorName}:</span>
+            <span className="font-bold text-slate-800">{formData.donorName}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">{t.amount}:</span>
+            <span className="font-bold text-emerald-700 text-lg dir-ltr">{formatMoney(formData.amount)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">{t.contributionType}:</span>
+            <span className="font-bold text-slate-800">{t.contributionTypes[formData.contributionType]}</span>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setShowConfirm(false)}
+            className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition"
+          >
+            {t.btnCancel}
+          </button>
+          <button 
+            onClick={handleFinalConfirm}
+            className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition shadow-lg hover:shadow-emerald-500/20"
+          >
+            {t.btnConfirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-8 animate-in slide-in-from-bottom-4 pb-24" dir={t.dir}>
       
-      {showConfirm && (
-        <ConfirmationModal 
-          data={{...formData, memberName: userDisplayName}} 
-          onConfirm={handleFinalConfirm}
-          onCancel={() => setShowConfirm(false)}
-          t={t}
-        />
-      )}
+      {showConfirm && <ConfirmModal />}
 
       <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
         <div className="p-8 bg-slate-900 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
@@ -1271,6 +1347,27 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
                 />
               </div>
             </div>
+            
+            {/* NEW CONTRIBUTION TYPE FIELD */}
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">{t.contributionType}</label>
+              <div className="relative">
+                <ChevronDown className={`absolute ${t.dir === 'rtl' ? 'left-4' : 'right-4'} top-4 text-slate-400 pointer-events-none`} size={16} />
+                <select 
+                  className={`w-full ${t.dir === 'rtl' ? 'pr-4 pl-10' : 'pl-4 pr-10'} py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none appearance-none font-medium cursor-pointer`}
+                  value={formData.contributionType}
+                  onChange={e => setFormData({...formData, contributionType: e.target.value})}
+                >
+                  <option value="financial">{t.contributionTypes.financial}</option>
+                  <option value="annual">{t.contributionTypes.annual}</option>
+                  <option value="activity">{t.contributionTypes.activity}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Method & Bank Details Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">{t.method}</label>
               <div className="relative">
@@ -1287,25 +1384,25 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
                 </select>
               </div>
             </div>
-          </div>
 
-          {formData.method === 'Bank Transfer' && (
-            <div className="animate-in fade-in slide-in-from-top-2 space-y-2">
-              <label className="text-sm font-bold text-blue-600">{t.bankDetails}</label>
-              <div className="relative group">
-                 <div className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-blue-400 group-focus-within:text-blue-600 transition`}>
-                    <CreditCard size={18} />
-                 </div>
-                 <input 
-                  type="text" required
-                  className={`w-full ${t.dir === 'rtl' ? 'pr-12 pl-4' : 'pl-12 pr-4'} py-3 bg-blue-50/30 border border-blue-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-blue-900 font-medium transition`}
-                  value={formData.bankDetails}
-                  onChange={e => setFormData({...formData, bankDetails: e.target.value})}
-                  placeholder={t.bankDetails}
-                />
+            {formData.method === 'Bank Transfer' && (
+              <div className="animate-in fade-in slide-in-from-top-2 space-y-2">
+                <label className="text-sm font-bold text-blue-600">{t.bankDetails}</label>
+                <div className="relative group">
+                   <div className={`absolute ${t.dir === 'rtl' ? 'right-4' : 'left-4'} top-3.5 text-blue-400 group-focus-within:text-blue-600 transition`}>
+                      <CreditCard size={18} />
+                   </div>
+                   <input 
+                    type="text" required
+                    className={`w-full ${t.dir === 'rtl' ? 'pr-12 pl-4' : 'pl-12 pr-4'} py-3 bg-blue-50/30 border border-blue-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-blue-900 font-medium transition`}
+                    value={formData.bankDetails}
+                    onChange={e => setFormData({...formData, bankDetails: e.target.value})}
+                    placeholder={t.bankDetails}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700">{t.description}</label>
@@ -1463,6 +1560,7 @@ export default function App() {
         phone: data.phone,
         amount: data.amount,
         paymentMethod: data.method,
+        contributionType: data.contributionType, // Saved field
         bankDetails: data.bankDetails || '',
         description: data.description,
         createdBy: userId,
