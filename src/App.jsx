@@ -704,9 +704,12 @@ const ReceiptModal = ({
                   <div className="mt-8 flex items-center justify-center gap-3">
                     <div className="bg-slate-900 text-white px-8 py-2 rounded-full shadow-md flex items-center gap-3">
                       <span className="text-xl font-bold pt-1">رقم الوصل:</span>
-                      <span className="font-mono text-2xl font-bold tracking-widest bg-slate-800 px-2 rounded dir-ltr">
-                        {String(donation.operationNumber).padStart(4, "0")}
-                      </span>
+                      <div className="inline-block">
+  <span className="font-mono text-2xl font-bold tracking-widest bg-slate-800 px-2 rounded dir-ltr">
+    {String(donation.operationNumber).padStart(4, "0")}
+  </span>
+</div>
+
                     </div>
                   </div>
                 </header>
