@@ -675,7 +675,7 @@ const ReceiptModal = ({
             <div className="w-full h-full p-[16mm] flex flex-col justify-between relative overflow-hidden box-border">
               
               {/* Watermark */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none z-0">
+              <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none z-0">
                 <img src={logoPath} className="w-[140mm] object-contain grayscale" alt="" />
               </div>
 
@@ -686,10 +686,10 @@ const ReceiptModal = ({
                 <header className="text-center border-b-2 border-slate-900 pb-8">
 
                   {/* QR Code - Top Left */}
-                  <div className="absolute top-4 left-4">
+                  <div className="absolute top-[-2rem] left-[-2rem]">
                     <img
                       src={qrCodeUrl}
-                      className="w-20 h-20 object-contain opacity-90"
+                      className="w-32 h-32 object-contain opacity-90"
                       alt="QR Code"
                     />
                   </div>
@@ -765,11 +765,11 @@ const ReceiptModal = ({
                     
                     {/* Received By */}
                     <div className="text-center w-5/12">
-                      <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-4">
+                      <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-16">
                         {t.receivedBy}
                       </p>
                       <p className="text-xl text-slate-700 font-bold">
-                        : {t.receivedByTitle} {donation.memberName}
+                         {t.receivedByTitle} : {donation.memberName}
                       </p>
                     </div>
 
