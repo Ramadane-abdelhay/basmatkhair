@@ -678,153 +678,147 @@ const ReceiptModal = ({
         }}
       >
 
-            <div className="w-full h-full p-[16mm] flex flex-col justify-between relative overflow-hidden box-border">
-              
-              {/* Watermark */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none z-0">
-                <img src={logoPath} className="w-[140mm] object-contain grayscale" alt="" />
+        <div className="w-full h-full p-[16mm] flex flex-col justify-between relative overflow-hidden box-border">
+          
+          {/* Watermark */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none z-0">
+            <img src={logoPath} className="w-[140mm] object-contain grayscale" alt="" />
+          </div>
+
+          {/* === RECEIPT CONTENT === */}
+          <div className="relative z-10 flex flex-col h-full justify-between text-slate-900">
+            
+            {/* Header */}
+            <header className="text-center border-b-2 border-slate-900 pb-8">
+
+              {/* QR Code - Top Left */}
+              <div className="absolute top-[-2rem] left-[-2rem]">
+                <img
+                  src={qrCodeUrl}
+                  className="w-32 h-32 object-contain opacity-90"
+                  alt="QR Code"
+                />
               </div>
 
-              {/* === RECEIPT CONTENT === */}
-              <div className="relative z-10 flex flex-col h-full justify-between text-slate-900">
-                
-                {/* Header */}
-                <header className="text-center border-b-2 border-slate-900 pb-8">
+              <div className="flex justify-center mb-6">
+                <img src={logoPath} className="h-[55mm] object-contain" alt="Logo" />
+              </div>
+              <p className="text-lg font-semibold text-slate-600">{t.subTitle}</p>
+              
+              {/* Receipt Number */}
+              <div className="mt-8 flex items-center justify-center gap-3">
+                <div className="bg-slate-900 text-white px-8 py-2 rounded-full shadow-md flex items-center gap-3">
+                  <span className="text-xl font-bold pt-1">رقم الوصل:</span>
+                  <span className="font-mono text-2xl font-bold tracking-widest bg-slate-800 px-2 rounded dir-ltr">
+                    {String(donation.operationNumber).padStart(4, "0")}
+                  </span>
+                </div>
+              </div>
+            </header>
 
-                  {/* QR Code - Top Left */}
-                  <div className="absolute top-[-2rem] left-[-2rem]">
-                    <img
-                      src={qrCodeUrl}
-                      className="w-32 h-32 object-contain opacity-90"
-                      alt="QR Code"
+            {/* Body */}
+            <main className="flex-1 py-12 flex flex-col gap-10 px-4">
+              
+              {/* Row 1: Name */}
+              <div className="flex items-end gap-6">
+                <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
+                  {t.receiptName} :
+                </div>
+                <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
+                  {donation.donorName || t.guest}
+                </div>
+              </div>
+
+              {/* Row 2: Contribution Type */}
+              <div className="flex items-end gap-6">
+                <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
+                  {t.contributionType} :
+                </div>
+                <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
+                  {getContributionLabel(donation.contributionType)}
+                </div>
+              </div>
+
+              {/* Row 3: Amount */}
+              <div className="flex items-end gap-6">
+                <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
+                  {t.receiptAmount} :
+                </div>
+                <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 flex items-center justify-center gap-3">
+                  <span className="text-4xl font-black text-slate-900 dir-ltr inline-block">
+                    {formatMoney(donation.amount)}
+                  </span>
+                  <span className="text-xl text-slate-500 font-bold mt-2">({t.currency})</span>
+                </div>
+              </div>
+
+              {/* Row 4: Date */}
+              <div className="flex items-end gap-6">
+                <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
+                  {t.receiptDate} :
+                </div>
+                <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
+                  {formatDate(donation.date)}
+                </div>
+              </div>
+
+            </main>
+
+            {/* Footer */}
+            <footer className="mt-auto">
+              <div className="flex justify-between items-start mb-8 px-4">
+                
+                {/* Received By */}
+                <div className="text-center w-5/12">
+                  <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-16">
+                    {t.receivedBy}
+                  </p>
+                  <p className="text-xl text-slate-700 font-bold">
+                     {t.receivedByTitle} : {donation.memberName}
+                  </p>
+                </div>
+
+                {/* Signature */}
+                <div className="text-center w-5/12">
+                  <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-4">
+                    {t.receiptSignature}
+                  </p>
+                  <div className="h-[35mm] flex items-center justify-center relative">
+                    <img 
+                      src={signatureUrl} 
+                      className="max-h-full object-contain -rotate-6 opacity-90 mix-blend-multiply absolute" 
+                      alt="Signature"
                     />
                   </div>
-  
-                  
-                  <div className="flex justify-center mb-6">
-                    <img src={logoPath} className="h-[55mm] object-contain" alt="Logo" />
-                  </div>
-                  <p className="text-lg font-semibold text-slate-600">{t.subTitle}</p>
-                  
-                  {/* Corrected Receipt Number Layout using Flexbox for precise RTL alignment */}
-                  <div className="mt-8 flex items-center justify-center gap-3">
-                    <div className="bg-slate-900 text-white px-8 py-2 rounded-full shadow-md flex items-center gap-3">
-                      <span className="text-xl font-bold pt-1">رقم الوصل:</span>
-                      <span className="font-mono text-2xl font-bold tracking-widest bg-slate-800 px-2 rounded dir-ltr"> 
-                        {String(donation.operationNumber).padStart(4, "0")} 
-                      </span>
-
-                    </div>
-                  </div>
-                </header>
-
-                {/* Body */}
-                <main className="flex-1 py-12 flex flex-col gap-10 px-4">
-                  
-                  {/* Row 1: Name */}
-                  <div className="flex items-end gap-6">
-                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
-                      {t.receiptName} :
-                    </div>
-                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
-                      {donation.donorName || t.guest}
-                    </div>
-                  </div>
-
-                  {/* Row 2: Contribution Type (NEW) */}
-                  <div className="flex items-end gap-6">
-                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
-                      {t.contributionType} :
-                    </div>
-                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
-                      {getContributionLabel(donation.contributionType)}
-                    </div>
-                  </div>
-
-                  {/* Row 3: Amount */}
-                  <div className="flex items-end gap-6">
-                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
-                      {t.receiptAmount} :
-                    </div>
-                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 flex items-center justify-center gap-3">
-                      <span className="text-4xl font-black text-slate-900 dir-ltr inline-block">
-                        {formatMoney(donation.amount)}
-                      </span>
-                      <span className="text-xl text-slate-500 font-bold mt-2">({t.currency})</span>
-                    </div>
-                  </div>
-
-                  {/* Row 4: Date */}
-                  <div className="flex items-end gap-6">
-                    <div className="font-bold text-slate-900 text-xl min-w-[45mm] text-right pt-2">
-                      {t.receiptDate} :
-                    </div>
-                    <div className="flex-1 text-center border-b-[3px] border-dotted border-slate-300 pb-2 text-2xl font-bold text-slate-800">
-                      {formatDate(donation.date)}
-                    </div>
-                  </div>
-
-                </main>
-
-                {/* Footer */}
-                <footer className="mt-auto">
-                  <div className="flex justify-between items-start mb-8 px-4">
-                    
-                    {/* Received By */}
-                    <div className="text-center w-5/12">
-                      <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-16">
-                        {t.receivedBy}
-                      </p>
-                      <p className="text-xl text-slate-700 font-bold">
-                         {t.receivedByTitle} : {donation.memberName}
-                      </p>
-                    </div>
-
-
-                    {/* Signature */}
-                    <div className="text-center w-5/12">
-                      <p className="font-bold text-slate-900 text-xl underline decoration-2 underline-offset-8 mb-4">
-                        {t.receiptSignature}
-                      </p>
-                      <div className="h-[35mm] flex items-center justify-center relative">
-                        <img 
-                          src={signatureUrl} 
-                          className="max-h-full object-contain -rotate-6 opacity-90 mix-blend-multiply absolute" 
-                          alt="Signature"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom Strip */}
-                  <div className="border-t-2 border-slate-100 pt-6 text-center">
-                    <p className="text-sm text-slate-400 font-semibold" dir="rtl">
-                      {t.receiptFooter}
-                    </p>
-                  </div>
-                </footer>
-
+                </div>
               </div>
-            </div>
+
+              {/* Bottom Strip */}
+              <div className="border-t-2 border-slate-100 pt-6 text-center">
+                <p className="text-sm text-slate-400 font-semibold" dir="rtl">
+                  {t.receiptFooter}
+                </p>
+              </div>
+            </footer>
+
           </div>
         </div>
-      </div>
 
-      {/* Print Styles */}
-      <style>{`
-        /* Force LTR direction for specific numbers to prevent flipping */
-        .dir-ltr { direction: ltr; unicode-bidi: isolate; }
-        
-        @media print {
-          @page { size: A4; margin: 0; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
-          #receipt-print-area { width: 210mm !important; height: 297mm !important; box-shadow: none !important; margin: 0 !important; page-break-after: always; }
-          .fixed { position: static !important; display: block !important; }
-        }
-      `}</style>
-    </div>
-  );
-};
+      </div> {/* closes ACTUAL A4 DOCUMENT */}
+    </div> {/* closes Wrapper for Scaling */}
+  </div> {/* closes FIX wrapper to prevent downward shift */}
+</div> {/* closes Viewport Area */}
+
+{/* Print Styles */}
+<style>{`
+  .dir-ltr { direction: ltr; unicode-bidi: isolate; }
+  @media print {
+    @page { size: A4; margin: 0; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
+    #receipt-print-area { width: 210mm !important; height: 297mm !important; box-shadow: none !important; margin: 0 !important; page-break-after: always; }
+    .fixed { position: static !important; display: block !important; }
+  }
+`}</style>
 
 
 // --- 5. MAIN VIEWS ---
