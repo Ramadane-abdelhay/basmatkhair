@@ -90,7 +90,7 @@ const TRANSLATIONS = {
     dir: 'rtl',
     langName: "العربية",
     appTitle: "جمعية بصمة خير",
-    subTitle: "نبادر لنعطي ونعطي لنأثر",
+    subTitle: "نبــــــادر لنعـطـي ونعطــي لنأثـــــر",
     dashboard: "الرئيسية",
     add: "تبرع جديد",
     history: "الأرشيف",
