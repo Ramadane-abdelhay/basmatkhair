@@ -651,12 +651,13 @@ const ReceiptModal = ({
         className="flex-1 overflow-auto bg-slate-900/50 p-4 md:p-8 flex justify-center items-start print:p-0 print:bg-white print:block print:overflow-visible"
         onClick={(e) => e.target === containerRef.current && onClose()}
       >
+      <div style={{ overflow: "hidden", display: "flex", justifyContent: "center" }}>
         {/* Wrapper for Scaling */}
         <div 
           className="relative transition-transform duration-200 ease-out origin-top print:transform-none print:w-full"
           style={{ 
             transform: `scale(${scale})`,
-            marginBottom: `${(297 * scale)}mm`
+            transformOrigin: "top center"
           }}
         >
           {/* ACTUAL A4 DOCUMENT */}
@@ -803,6 +804,7 @@ const ReceiptModal = ({
           </div>
         </div>
       </div>
+    </div>
 
       {/* Print Styles */}
       <style>{`
