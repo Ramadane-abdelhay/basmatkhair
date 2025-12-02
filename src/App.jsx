@@ -704,11 +704,9 @@ const ReceiptModal = ({
                   <div className="mt-8 flex items-center justify-center gap-3">
                     <div className="bg-slate-900 text-white px-8 py-2 rounded-full shadow-md flex items-center gap-3">
                       <span className="text-xl font-bold pt-1">رقم الوصل:</span>
-                      <div className="inline-block">
-  <span className="font-mono text-2xl font-bold tracking-widest bg-slate-800 px-2 rounded dir-ltr">
-    {String(donation.operationNumber).padStart(4, "0")}
-  </span>
-</div>
+                      <span className="font-mono text-2xl font-bold tracking-widest bg-slate-800 px-2 rounded dir-ltr"> 
+                        {String(donation.operationNumber).padStart(4, "0")} 
+                      </span>
 
                     </div>
                   </div>
@@ -794,7 +792,7 @@ const ReceiptModal = ({
 
                   {/* Bottom Strip */}
                   <div className="border-t-2 border-slate-100 pt-6 text-center">
-                    <p className="text-sm text-slate-400 font-semibold tracking-wide">
+                    <p className="text-sm text-slate-400 font-semibold" dir="rtl">
                       {t.receiptFooter}
                     </p>
                   </div>
