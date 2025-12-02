@@ -645,39 +645,7 @@ const ReceiptModal = ({
         </div>
       </div>
 
-      {/* --- Viewport Area --- */}
-<div 
-  ref={containerRef}
-  className="flex-1 overflow-auto bg-slate-900/50 p-4 md:p-8 flex justify-center items-start print:p-0 print:bg-white print:block print:overflow-visible"
-  onClick={(e) => e.target === containerRef.current && onClose()}
->
-
-  {/* FIX: wrapper to prevent downward shift */}
-  <div style={{ overflow: "hidden", display: "flex", justifyContent: "center" }}>
-
-    {/* Wrapper for Scaling */}
-    <div 
-      className="relative transition-transform duration-200 ease-out origin-top print:transform-none print:w-full"
-      style={{ 
-        transform: `scale(${scale})`,
-        transformOrigin: "top center"
-        // ❌ removed: marginBottom
-      }}
-    >
-
-      {/* ACTUAL A4 DOCUMENT */}
-      <div
-        ref={printAreaRef}
-        id="receipt-print-area"
-        className="bg-white shadow-2xl print:shadow-none"
-        style={{
-          width: "210mm",
-          height: "297mm",
-          position: "relative",
-          direction: "rtl",
-          fontFamily: "'Cairo', sans-serif"
-        }}
-      >
+      {/* --- Viewport Area --- */} <div ref={containerRef} className="flex-1 overflow-auto bg-slate-900/50 p-4 md:p-8 flex justify-center items-start print:p-0 print:bg-white print:block print:overflow-visible" onClick={(e) => e.target === containerRef.current && onClose()} > {/* Wrapper for Scaling */} <div className="relative transition-transform duration-200 ease-out origin-top print:transform-none print:w-full" style={{ transform: scale(${scale}), marginBottom: ${(297 * scale)}mm }} > {/* ACTUAL A4 DOCUMENT */} <div ref={printAreaRef} id="receipt-print-area" className="bg-white shadow-2xl print:shadow-none" style={{ width: "210mm", height: "297mm", position: "relative", direction: "rtl", fontFamily: "'Cairo', sans-serif" }} >
 
             <div className="w-full h-full p-[16mm] flex flex-col justify-between relative overflow-hidden box-border">
               
