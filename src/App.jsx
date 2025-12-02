@@ -699,7 +699,7 @@ const ReceiptModal = ({
                   <div className="flex justify-center mb-6">
                     <img src={logoPath} className="h-[55mm] object-contain" alt="Logo" />
                   </div>
-                  <p className="text-lg font-semibold text-slate-600">{t.subTitle}</p>
+                  <p className="text-lg font-semibold text-slate-600 text-[#307d34]">{t.subTitle}</p>
                   
                   {/* Corrected Receipt Number Layout using Flexbox for precise RTL alignment */}
                   <div className="mt-8 flex items-center justify-center gap-3">
