@@ -1567,61 +1567,99 @@ export default function App() {
   const handleAdd = async (data, callback) => {
     setLoading(true);
     try {
-      // 1. Calculate the new Operation Number
+      // 1. Calculate Operation Number
       const nextOpNumber = donations.length > 0 
         ? Math.max(...donations.map(d => d.operationNumber).filter(n => typeof n === 'number')) + 1 
         : 1; 
 
-      // 2. Prepare the data payload
+      // 2. Prepare Standard Payload (For Firebase Database)
       const payload = {
         operationNumber: nextOpNumber,
         donorName: data.donorName,
         phone: data.phone,
         amount: data.amount,
-        paymentMethod: data.method,
-        contributionType: data.contributionType,
+        paymentMethod: data.method,           
+        contributionType: data.contributionType, 
         bankDetails: data.bankDetails || '',
         description: data.description,
         createdBy: userId,
         memberName: data.memberName,
-        timestamp: serverTimestamp() // This is for Firebase
+        timestamp: serverTimestamp()
       };
 
-      // 3. SAVE TO FIREBASE (This makes it show up in your App)
+      // 3. SAVE TO FIREBASE
       await addDoc(collection(db, `artifacts/${appId}/public/data/donations`), payload);
 
-      // 4. SEND TO GOOGLE SHEET (This updates your Sheet automatically)
+      // --- 4. PREPARE ARABIC DATA FOR GOOGLE SHEETS ---
       try {
-        const sheetPayload = {
-          ...payload,
-          timestamp: new Date().toISOString() // Google Sheets needs a text date, not a Firebase timestamp
+        // الوصول إلى ملفات الترجمة العربية
+        const ar = TRANSLATIONS.ar;
+
+        // خريطة تحويل طرق الدفع (الإنجليزية -> العربية)
+        const methodMap = {
+          'Cash': ar.methods.cash,
+          'Bank Transfer': ar.methods.transfer,
+          'Check': ar.methods.check,
+          'Other': ar.methods.other
+        };
+        const arabicMethod = methodMap[data.method] || data.method;
+
+        // خريطة تحويل أنواع المساهمات (المفتاح الإنجليزي -> النص العربي المحدد)
+        const contributionTypeMap = {
+            // القيم المعتادة من ملف الترجمة
+            'financial': ar.contributionTypes.financial, // مثال: 'تبرع مالي'
+            
+            // القيم المحددة التي طلبتها:
+            'annual': 'انخراط سنوي',
+            'activity': 'المساهمة في نشاط',
+
+            // إضافة أي مفاتيح أخرى هنا بنفس الطريقة
         };
 
-        // Send to the Webhook
+        const arabicContribution = contributionTypeMap[data.contributionType] 
+                                    // إذا لم نجدها في الخريطة المخصصة، نبحث في ملف الترجمة العام
+                                    || ar.contributionTypes[data.contributionType] 
+                                    // إذا لم نجدها، نرسل القيمة الأصلية
+                                    || data.contributionType; 
+
+        // إنشاء البيانات المخصصة للجدول (باللغة العربية)
+        const sheetPayload = {
+          operationNumber: nextOpNumber,
+          donorName: data.donorName,
+          phone: data.phone,
+          amount: data.amount,
+          paymentMethod: arabicMethod,        // <--- الآن بالعربية
+          contributionType: arabicContribution, // <--- الآن بالعربية
+          bankDetails: data.bankDetails || '',
+          description: data.description,
+          createdBy: userId,
+          memberName: data.memberName,
+          timestamp: new Date().toLocaleDateString('ar-MA') 
+        };
+
+        // إرسال إلى Webhook
         fetch(GOOGLE_SHEET_WEBHOOK_URL, {
           method: "POST",
-          mode: "no-cors", // Required for Google Scripts
+          mode: "no-cors",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(sheetPayload),
         });
         
-        console.log("Data sent to Google Sheet");
+        console.log("Arabic data sent to Google Sheet");
       } catch (sheetError) {
         console.error("Failed to update Google Sheet:", sheetError);
-        // We catch the error so the app doesn't crash if the sheet is down
       }
+      // ----------------------------------------------------
 
-      // 5. Update UI
       setView('list');
       callback(true);
     } catch (err) {
-      console.error("Firebase Error:", err);
+      console.error(err);
       callback(false);
     } finally {
       setLoading(false);
     }
   };
-
   const handleDelete = async (id) => {
     if(confirm(t.deleteConfirm)) { 
       try {
