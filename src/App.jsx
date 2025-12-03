@@ -74,7 +74,7 @@ const db = getFirestore(app);
 
 // --- google sheet webhook ---
 
-const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwIucFBePIPwMnpaqSe0m26nTuKbgV4pisXrdQ06EV4Y0US-YPCieA5aldOiKxFK_2p/exec";
+const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbytMlS-Zu3uvXvxP4K5Kv0vuba0HXEgM2Z5RyUk3SQBHDCIc-PF7IGX4VOf0zEJ4yFr/exec";
 
 const appId = 'basmat-khair-app';
 
