@@ -74,7 +74,7 @@ const db = getFirestore(app);
 
 // --- google sheet webhook ---
 
-const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbytMlS-Zu3uvXvxP4K5Kv0vuba0HXEgM2Z5RyUk3SQBHDCIc-PF7IGX4VOf0zEJ4yFr/exec";
+const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyIw9y4t6FCArtm-yLSnOJ9o7LXBzgkPq9mvRALAYWuT0BZjJTJ5r_BD52vmRe94a9e/exec";
 
 const appId = 'basmat-khair-app';
 
@@ -94,6 +94,7 @@ const TRANSLATIONS = {
     dir: 'rtl',
     langName: "العربية",
     appTitle: "جمعية بصمة خير",
+    Treasurer: أيوب زراك,
     subTitle: "نبــــــادر لنعـطـي ونعطــي لنأثـــــر",
     dashboard: "الرئيسية",
     add: "تبرع جديد",
@@ -175,6 +176,7 @@ const TRANSLATIONS = {
     langName: "English",
     appTitle: "Basmat Khair",
     subTitle: "We initiate to give, and give to impact",
+    Treasurer: Ayoub Zarag,
     dashboard: "Dashboard",
     add: "New Donation",
     history: "History",
@@ -254,6 +256,7 @@ const TRANSLATIONS = {
     langName: "Français",
     appTitle: "Basmat Khair",
     subTitle: "Nous initions pour donner, et donnons pour impacter",
+    Treasurer: Ayoub Zarag,
     dashboard: "Tableau de bord",
     add: "Nouveau Don",
     history: "Historique",
@@ -775,7 +778,7 @@ const ReceiptModal = ({
                         {t.receivedBy}
                       </p>
                       <p className="text-xl text-slate-700 font-bold">
-                         {t.receivedByTitle} : {donation.memberName}
+                         {t.receivedByTitle} : {t.Treasurer}
                       </p>
                     </div>
 
