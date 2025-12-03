@@ -1839,6 +1839,8 @@ const NavItem = ({ active, onClick, icon: Icon, label, highlight, t }) => (
   </button>
 );
 
+// --- auto update sheet ---
+
 const MobileNavItem = ({ onClick, label, active, icon: Icon, t }) => (
   <button 
     onClick={onClick} 
@@ -1848,3 +1850,76 @@ const MobileNavItem = ({ onClick, label, active, icon: Icon, t }) => (
     {label}
   </button>
 );
+
+
+// --- Google Sheet Webhook URL ---
+const GOOGLE_SHEET_WEBHOOK_URL =
+  "https://script.google.com/macros/s/AKfycbwIucFBePIPwMnpaqSe0m26nTuKbgV4pisXrdQ06EV4Y0US-YPCieA5aldOiKxFK_2p/exec";
+
+
+// --- handleAdd Function ---
+const handleAdd = async (data, callback) => {
+
+  setLoading(true);
+
+  try {
+    // 1. Calculate Operation Number
+    const nextOpNumber =
+      donations.length > 0
+        ? Math.max(...donations.map(d => d.operationNumber).filter(n => typeof n === "number")) + 1
+        : 1;
+
+    // 2. Prepare Payload (data for Firebase & Google Sheets)
+    const payload = {
+      operationNumber: nextOpNumber,
+      donorName: data.donorName,
+      phone: data.phone,
+      amount: data.amount,
+      paymentMethod: data.method,
+      contributionType: data.contributionType,
+      bankDetails: data.bankDetails || "",
+      description: data.description,
+      createdBy: userId,
+      memberName: data.memberName,
+      timestamp: serverTimestamp() // Firebase timestamp
+    };
+
+    // 3. Save to Firebase
+    await addDoc(
+      collection(db, `artifacts/${appId}/public/data/donations`),
+      payload
+    );
+
+
+    // --- SEND TO GOOGLE SHEETS (non-blocking) ---
+    try {
+      const sheetPayload = {
+        ...payload,
+        timestamp: new Date().toISOString(), // Send string timestamp for Sheets
+      };
+
+      await fetch(GOOGLE_SHEET_WEBHOOK_URL, {
+        method: "POST",
+        mode: "no-cors", // Important for browser security
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(sheetPayload),
+      });
+
+      console.log("Donation successfully logged to Google Sheet.");
+    } catch (sheetError) {
+      console.error("Failed to send data to Google Sheet Webhook:", sheetError);
+    }
+    // ----------------------------------------------------
+
+
+    setView("list");
+    callback(true);
+  } catch (err) {
+    console.error(err);
+    callback(false);
+  } finally {
+    setLoading(false);
+  }
+};
