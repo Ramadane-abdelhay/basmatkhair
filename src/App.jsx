@@ -22,6 +22,12 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { 
+  getStorage, 
+  ref, 
+  uploadBytes, 
+  getDownloadURL 
+} from 'firebase/storage';
+import { 
   Plus, 
   LayoutDashboard, 
   List as ListIcon, 
@@ -52,7 +58,10 @@ import {
   Languages, 
   LogIn,
   FileSpreadsheet,
-  Tag
+  Tag,
+  Upload,
+  Image as ImageIcon,
+  Paperclip
 } from 'lucide-react';
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -71,6 +80,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app); // Initialize Storage
 
 // --- google sheet webhook ---
 
@@ -118,6 +128,9 @@ const TRANSLATIONS = {
     method: "طريقة الأداء",
     bankDetails: "بيانات البنك / الشيك",
     description: "ملاحظات إضافية",
+    proofImage: "صورة الوصل / إثبات الدفع",
+    uploadProof: "تحميل الصورة",
+    viewProof: "معاينة الإثبات",
     memberResponsable: "المكلف بالعملية",
     dateFixed: "تاريخ العملية",
     btnRecord: "حفظ ومتابعة",
@@ -133,7 +146,6 @@ const TRANSLATIONS = {
       check: "شيك",
       other: "أخرى"
     },
-    // NEW FIELDS
     contributionType: "طبيعة المساهمة",
     contributionTypes: {
       financial: "تبرع مالي",
@@ -153,7 +165,7 @@ const TRANSLATIONS = {
     delete: "حذف",
     opNumber: "رقم العملية",
     receivedBy: "المستلم",
-    receivedByTitle: "امين المال", // Treasurer
+    receivedByTitle: "امين المال", 
     receiptTitle: "وصل تبرع",
     receiptAssocName: "جمعية بصمة خير للأعمال الاجتماعية",
     receiptFooter: "هذا الوصل يثبت حصول الجمعية على المبلغ | شكراً لانخراطكم ودعمكم لأنشطة الجمعية",
@@ -199,6 +211,9 @@ const TRANSLATIONS = {
     method: "Payment Method",
     bankDetails: "Bank/Check Details",
     description: "Additional Notes",
+    proofImage: "Proof of Payment",
+    uploadProof: "Upload Image",
+    viewProof: "View Proof",
     memberResponsable: "Responsible Member",
     dateFixed: "Operation Date",
     btnRecord: "Save & Continue",
@@ -279,6 +294,9 @@ const TRANSLATIONS = {
     method: "Méthode",
     bankDetails: "Détails Banque/Chèque",
     description: "Notes Supplémentaires",
+    proofImage: "Preuve de Paiement",
+    uploadProof: "Télécharger Image",
+    viewProof: "Voir Preuve",
     memberResponsable: "Membre Responsable",
     dateFixed: "Date d'Opération",
     btnRecord: "Sauvegarder",
@@ -1004,12 +1022,12 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
         <table>
           <!-- Decorative Header -->
           <tr>
-            <td colspan="6" class="header-title">جمعية بصمة خير للأعمال الاجتماعية</td>
+            <td colspan="7" class="header-title">جمعية بصمة خير للأعمال الاجتماعية</td>
           </tr>
           <tr>
-            <td colspan="6" class="header-sub">جميع تبرعات الجمعية (سجل شامل)</td>
+            <td colspan="7" class="header-sub">جميع تبرعات الجمعية (سجل شامل)</td>
           </tr>
-          <tr><td colspan="6"></td></tr> <!-- Spacer -->
+          <tr><td colspan="7"></td></tr> <!-- Spacer -->
           
           <!-- Column Headers -->
           <thead>
@@ -1020,7 +1038,8 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
               <th class="table-head">طبيعة المساهمة</th>
               <th class="table-head">المبلغ (درهم)</th>
               <th class="table-head">طريقة الأداء</th>
-              <th class="table-head">الملاحظات</th>
+              <th class="table-head">الهاتف</th>
+              <th class="table-head">الملاحظات (و رابط الإثبات)</th>
             </tr>
           </thead>
           
@@ -1032,7 +1051,8 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
     filteredDonations.forEach((d, index) => {
       const rowClass = index % 2 === 0 ? 'row-even' : 'row-odd';
       const contributionLabel = t.contributionTypes?.[d.contributionType] || d.contributionType || '-';
-      
+      const proofText = d.proofUrl ? ` (Proof: ${d.proofUrl})` : '';
+
       tableHTML += `
         <tr class="${rowClass}">
           <td class="cell">#${d.operationNumber}</td>
@@ -1041,7 +1061,8 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
           <td class="cell">${contributionLabel}</td>
           <td class="cell amount">${d.amount}</td>
           <td class="cell">${d.paymentMethod} ${d.bankDetails ? `(${d.bankDetails})` : ''}</td>
-          <td class="cell">${d.description || '-'}</td>
+          <td class="cell">${d.phone || '-'}</td>
+          <td class="cell">${(d.description || '-') + proofText}</td>
         </tr>
       `;
     });
@@ -1129,6 +1150,11 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
                     <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
                        <Calendar size={12} /> {formatDate(d.date)}
                     </span>
+                    {d.proofUrl && (
+                      <span className="text-xs text-blue-500 font-bold flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded">
+                        <Paperclip size={10} /> {t.viewProof}
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-lg font-bold text-slate-800 mb-1">{d.donorName || t.guest}</h3>
                   <div className="flex items-center gap-4 text-sm text-slate-500">
@@ -1169,6 +1195,16 @@ const DonationList = ({ donations, t, userId, isAdmin, onDelete, onAction }) => 
                          >
                            <Eye size={16} /> {t.viewReceipt}
                          </button>
+                         {d.proofUrl && (
+                            <a 
+                              href={d.proofUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`w-full ${t.dir === 'rtl' ? 'text-right' : 'text-left'} px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-3 font-medium transition`}
+                            >
+                              <Paperclip size={16} /> {t.viewProof}
+                            </a>
+                         )}
                          <button 
                            onClick={() => onAction('download', d)}
                            className={`w-full ${t.dir === 'rtl' ? 'text-right' : 'text-left'} px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-emerald-700 flex items-center gap-3 font-medium transition`}
@@ -1216,6 +1252,8 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
     bankDetails: '',
     description: ''
   });
+  const [proofFile, setProofFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSubmit = (e) => {
@@ -1225,12 +1263,30 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
     setShowConfirm(true);
   };
 
-  const handleFinalConfirm = () => {
+  const handleFinalConfirm = async () => {
+    setUploading(true);
+    let proofUrl = '';
+
+    // 1. Upload File if exists
+    if (proofFile) {
+      try {
+        const storageRef = ref(storage, `proofs/${Date.now()}_${proofFile.name}`);
+        const snapshot = await uploadBytes(storageRef, proofFile);
+        proofUrl = await getDownloadURL(snapshot.ref);
+      } catch (error) {
+        console.error("Upload failed", error);
+        alert("Failed to upload image. Continuing without image.");
+      }
+    }
+
+    // 2. Add Data
     onAdd({
       ...formData,
       amount: parseFloat(formData.amount),
-      memberName: userDisplayName
+      memberName: userDisplayName,
+      proofUrl: proofUrl
     }, (success) => {
+      setUploading(false);
       if (success) {
         setFormData({ 
           donorName: '', 
@@ -1241,6 +1297,7 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
           bankDetails: '', 
           description: '' 
         });
+        setProofFile(null);
         setShowConfirm(false);
       }
     });
@@ -1271,20 +1328,33 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
             <span className="text-slate-500">{t.contributionType}:</span>
             <span className="font-bold text-slate-800">{t.contributionTypes[formData.contributionType]}</span>
           </div>
+          {proofFile && (
+            <div className="flex justify-between">
+               <span className="text-slate-500">{t.proofImage}:</span>
+               <span className="font-bold text-blue-600 flex items-center gap-1"><Paperclip size={12} /> {proofFile.name.substring(0, 15)}...</span>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3">
           <button 
             onClick={() => setShowConfirm(false)}
+            disabled={uploading}
             className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition"
           >
             {t.btnCancel}
           </button>
           <button 
             onClick={handleFinalConfirm}
-            className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition shadow-lg hover:shadow-emerald-500/20"
+            disabled={uploading}
+            className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition shadow-lg hover:shadow-emerald-500/20 disabled:opacity-70 flex items-center justify-center gap-2"
           >
-            {t.btnConfirm}
+            {uploading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                <span>{t.btnSaving}</span>
+              </>
+            ) : t.btnConfirm}
           </button>
         </div>
       </div>
@@ -1419,6 +1489,31 @@ const AddDonation = ({ onAdd, loading, t, userDisplayName }) => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Proof Upload (New Section) */}
+          <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">{t.proofImage}</label>
+              <div className="relative">
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={(e) => setProofFile(e.target.files[0])}
+                  className="hidden"
+                  id="proof-upload"
+                />
+                <label 
+                  htmlFor="proof-upload" 
+                  className={`w-full flex items-center justify-between p-3 border-2 border-dashed ${proofFile ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 hover:border-emerald-400 hover:bg-slate-50'} rounded-xl cursor-pointer transition`}
+                >
+                   <span className={`text-sm font-bold ${proofFile ? 'text-emerald-700' : 'text-slate-500'}`}>
+                      {proofFile ? proofFile.name : t.uploadProof}
+                   </span>
+                   <div className={`p-2 rounded-lg ${proofFile ? 'bg-emerald-200 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {proofFile ? <Check size={20} /> : <Upload size={20} />}
+                   </div>
+                </label>
+              </div>
           </div>
 
           <div className="space-y-2">
@@ -1585,6 +1680,7 @@ export default function App() {
         contributionType: data.contributionType, 
         bankDetails: data.bankDetails || '',
         description: data.description,
+        proofUrl: data.proofUrl || '', // Save proof URL
         createdBy: userId,
         memberName: data.memberName,
         timestamp: serverTimestamp()
@@ -1595,10 +1691,7 @@ export default function App() {
 
       // --- 4. PREPARE ARABIC DATA FOR GOOGLE SHEETS ---
       try {
-        // الوصول إلى ملفات الترجمة العربية
         const ar = TRANSLATIONS.ar;
-
-        // خريطة تحويل طرق الدفع (الإنجليزية -> العربية)
         const methodMap = {
           'Cash': ar.methods.cash,
           'Bank Transfer': ar.methods.transfer,
@@ -1606,41 +1699,34 @@ export default function App() {
           'Other': ar.methods.other
         };
         const arabicMethod = methodMap[data.method] || data.method;
-
-        // خريطة تحويل أنواع المساهمات (المفتاح الإنجليزي -> النص العربي المحدد)
         const contributionTypeMap = {
-            // القيم المعتادة من ملف الترجمة
-            'financial': ar.contributionTypes.financial, // مثال: 'تبرع مالي'
-            
-            // القيم المحددة التي طلبتها:
+            'financial': ar.contributionTypes.financial, 
             'annual': 'انخراط سنوي',
             'activity': 'المساهمة في نشاط',
-
-            // إضافة أي مفاتيح أخرى هنا بنفس الطريقة
         };
+        const arabicContribution = contributionTypeMap[data.contributionType] || ar.contributionTypes[data.contributionType] || data.contributionType; 
 
-        const arabicContribution = contributionTypeMap[data.contributionType] 
-                                    // إذا لم نجدها في الخريطة المخصصة، نبحث في ملف الترجمة العام
-                                    || ar.contributionTypes[data.contributionType] 
-                                    // إذا لم نجدها، نرسل القيمة الأصلية
-                                    || data.contributionType; 
+        // Append Proof URL to description for Sheet Context
+        let descriptionWithProof = data.description || "";
+        if (data.proofUrl) {
+           descriptionWithProof += `\n[رابط الإثبات: ${data.proofUrl}]`;
+        }
 
-        // إنشاء البيانات المخصصة للجدول (باللغة العربية)
         const sheetPayload = {
           operationNumber: nextOpNumber,
           donorName: data.donorName,
-          phone: data.phone,
+          phone: data.phone, // Send Phone
           amount: data.amount,
-          paymentMethod: arabicMethod,        // <--- الآن بالعربية
-          contributionType: arabicContribution, // <--- الآن بالعربية
+          paymentMethod: arabicMethod,
+          contributionType: arabicContribution, 
           bankDetails: data.bankDetails || '',
-          description: data.description,
+          description: descriptionWithProof, // Send Desc with Link
+          proofUrl: data.proofUrl || '',
           createdBy: userId,
           memberName: data.memberName,
           timestamp: new Date().toLocaleDateString('ar-MA') 
         };
 
-        // إرسال إلى Webhook
         fetch(GOOGLE_SHEET_WEBHOOK_URL, {
           method: "POST",
           mode: "no-cors",
@@ -1652,7 +1738,6 @@ export default function App() {
       } catch (sheetError) {
         console.error("Failed to update Google Sheet:", sheetError);
       }
-      // ----------------------------------------------------
 
       setView('list');
       callback(true);
@@ -1682,9 +1767,6 @@ export default function App() {
     if (type === 'print' || type === 'download') {
       setAutoPrint(type === 'print');
       setReceiptData(data);
-      if(type === 'download') {
-         // The modal itself handles the download button now
-      }
     }
   };
 
@@ -1926,5 +2008,3 @@ const MobileNavItem = ({ onClick, label, active, icon: Icon, t }) => (
     {label}
   </button>
 );
-
-
