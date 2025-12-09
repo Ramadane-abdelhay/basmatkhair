@@ -84,7 +84,7 @@ const storage = getStorage(app); // Initialize Storage
 
 // --- google sheet webhook ---
 
-const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyMhwoJhcPi4zHY8WL7Y9XyRVhiDPDUAsSUA2AUvSjI2owByrBo9duUXPjD5H1wQL7N/exec";
+const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyzvVnXpO82i9PprlXpobR58eNdwHRqQ50qSfr6pyBNO1XGXX_ah1iQhgo2IQ94pXuo/exec";
 
 const appId = 'basmat-khair-app';
 
